@@ -1,0 +1,22 @@
+{
+  "name": "dundun-watch-worker",
+  "version": "1.0.0",
+  "description": "炖炖守望 - Workers 后端",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "monitoring",
+    "uptime"
+  ],
+  "author": "人生大乱炖",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

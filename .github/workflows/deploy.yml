@@ -1,0 +1,210 @@
+name: 部署（Cloudflare Worker + Pages）
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      WORKER_NAME: dundun-watch
+      KV_TITLE: dundun-watch_MONITOR_DATA
+      PAGES_PROJECT: dundun-watch
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node 环境
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装 Wrangler
+        run: |
+          echo "安装 Wrangler CLI..."
+          npm i -g wrangler@3
+
+      - name: 发现 Cloudflare 账户 ID
+        shell: bash
+        run: |
+          set -e
+          echo "开始发现 Cloudflare 账户 ID..."
+          ACC_JSON=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" https://api.cloudflare.com/client/v4/accounts)
+          ACCOUNT_ID=$(echo "$ACC_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);console.log(o.result?.[0]?.id||'');}catch(e){console.log('');}})")
+          if [ -z "$ACCOUNT_ID" ]; then echo 'Failed to discover Account ID'; exit 1; fi
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+
+      - name: 创建或复用 KV 命名空间
+        shell: bash
+        run: |
+          set -e
+          echo "创建或复用 KV 命名空间：$KV_TITLE"
+          # Try to create KV namespace via Cloudflare API
+          CREATE_JSON=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"title\": \"$KV_TITLE\"}") || true
+          KV_NAMESPACE_ID=$(echo "$CREATE_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);if(o?.success&&o?.result?.id)console.log(o.result.id);else console.log('');}catch(e){console.log('');}})")
+          if [ -z "$KV_NAMESPACE_ID" ]; then
+            # If creation failed (exists), list and find by title
+            LIST_JSON=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces?per_page=100" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json")
+            KV_NAMESPACE_ID=$(echo "$LIST_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);const arr=o?.result||[];const f=arr.find(x=>x?.title==='${KV_TITLE}');console.log(f?f.id:'');}catch(e){console.log('');}})")
+          fi
+          if [ -z "$KV_NAMESPACE_ID" ]; then
+            echo 'Failed to get KV namespace id' >&2
+            exit 1
+          fi
+          echo "KV_NAMESPACE_ID=$KV_NAMESPACE_ID" >> $GITHUB_ENV
+
+      - name: 写入管理员密码到 KV
+        env:
+          ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+          KV_NAMESPACE_ID: ${{ env.KV_NAMESPACE_ID }}
+        run: |
+          echo "写入管理员密码到 KV..."
+          ADMIN_PW=${ADMIN_PASSWORD:-admin123456}
+          wrangler kv:key put --namespace-id $KV_NAMESPACE_ID admin_password "$ADMIN_PW"
+
+      - name: 生成临时 wrangler 配置
+        shell: bash
+        run: |
+          echo "生成临时 wrangler 配置..."
+          mkdir -p worker
+          cat > worker/wrangler.ci.toml <<EOF
+          name = "${WORKER_NAME}"
+          main = "src/index.js"
+          compatibility_date = "2024-12-08"
+          
+          kv_namespaces = [
+            { binding = "MONITOR_DATA", id = "${KV_NAMESPACE_ID}" }
+          ]
+          [triggers]
+          crons = ["* * * * *", "0 4 * * *"]
+          EOF
+
+      - name: 部署 Worker
+        working-directory: worker
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "开始部署 Worker..."
+          wrangler deploy --config wrangler.ci.toml
+
+      - name: 构建前端
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ""
+        run: |
+          echo "开始构建前端..."
+          echo "API 地址: 使用相对路径（Pages Functions）"
+          npm ci
+          npm run build
+
+      - name: 确保 Pages 项目存在（如无则创建）
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -e
+          echo "确保 Pages 项目存在：$PAGES_PROJECT"
+          # Try to create via Cloudflare API; if already exists, ignore
+          CREATE_JSON=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"name\": \"$PAGES_PROJECT\", \"production_branch\": \"main\"}") || true
+          CREATED_ID=$(echo "$CREATE_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);if(o?.success&&o?.result?.id)console.log(o.result.id);else console.log('');}catch(e){console.log('');}})")
+          if [ -z "$CREATED_ID" ]; then
+            # Confirm existence
+            GET_JSON=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json")
+            OK=$(echo "$GET_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);console.log(o?.success?1:0);}catch(e){console.log(0);}})")
+            if [ "$OK" != "1" ]; then
+              echo 'Failed to create or find Pages project' >&2
+              echo "$CREATE_JSON"
+              echo "$GET_JSON"
+              exit 1
+            fi
+          fi
+
+      - name: 配置 Pages Functions 绑定
+        run: |
+          echo "配置 Pages Functions 的 KV 和环境变量绑定..."
+          CURRENT_ADMIN=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);console.log(o?.result?.deployment_configs?.production?.env_vars?.ADMIN_PASSWORD?.value||'');}catch(e){console.log('');}})")
+          ADMIN_PW="${ADMIN_PASSWORD:-$CURRENT_ADMIN}"
+          if [ -z "$ADMIN_PW" ]; then ADMIN_PW="admin123456"; fi
+
+          curl -s -X PATCH "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{
+              \"deployment_configs\": {
+                \"production\": {
+                  \"kv_namespaces\": {
+                    \"MONITOR_DATA\": { \"namespace_id\": \"$KV_NAMESPACE_ID\" }
+                  },
+                  \"env_vars\": {
+                    \"ADMIN_PASSWORD\": null
+                  }
+                },
+                \"preview\": {
+                  \"kv_namespaces\": {
+                    \"MONITOR_DATA\": { \"namespace_id\": \"$KV_NAMESPACE_ID\" }
+                  },
+                  \"env_vars\": {
+                    \"ADMIN_PASSWORD\": null
+                  }
+                }
+              }
+            }"
+          echo "绑定配置完成"
+
+      - name: 部署到 Cloudflare Pages
+        working-directory: frontend
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "部署 Pages（包含 Functions）..."
+          wrangler pages deploy dist --project-name=$PAGES_PROJECT --branch=main
+
+      - name: 获取 Pages 实际域名
+        run: |
+          PROJECT_JSON=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json")
+          PAGES_DOMAIN=$(echo "$PROJECT_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);const domains=o.result?.domains||[];const pagesDomain=domains.find(d=>d.endsWith('.pages.dev'));console.log(pagesDomain||'');}catch(e){console.log('');}})")
+          if [ -n "$PAGES_DOMAIN" ]; then
+            PAGES_URL="https://${PAGES_DOMAIN}"
+          else
+            PAGES_URL="https://${PAGES_PROJECT}.pages.dev"
+          fi
+          echo "PAGES_URL=$PAGES_URL" >> $GITHUB_ENV
+
+      - name: 部署成功摘要
+        if: success()
+        run: |
+          echo "## 部署成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "访问地址：$PAGES_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "默认密码：admin123456（如已配置 ADMIN_PASSWORD 则使用你设置的密码）" >> $GITHUB_STEP_SUMMARY
+
+      - name: 部署失败提示
+        if: failure()
+        run: |
+          echo "## ❌ 部署失败" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "请检查以下内容：" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. CLOUDFLARE_API_TOKEN 是否正确配置" >> $GITHUB_STEP_SUMMARY
+          echo "2. Token 权限是否包含：Workers KV Storage、Workers Scripts、Cloudflare Pages、Account Settings" >> $GITHUB_STEP_SUMMARY
+          echo "3. 查看上方日志定位具体错误" >> $GITHUB_STEP_SUMMARY
