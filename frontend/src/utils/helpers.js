@@ -103,7 +103,13 @@ export function groupSites(sites, groups = []) {
       return orderA - orderB;
     })
     .forEach(key => {
-      sortedGrouped[key] = grouped[key];
+      // 对每个分类内的站点按 sortOrder 排序
+      sortedGrouped[key] = grouped[key].sort((a, b) => {
+        const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 0;
+        const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 0;
+        if (orderA !== orderB) return orderA - orderB;
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      });
     });
   
   return sortedGrouped;

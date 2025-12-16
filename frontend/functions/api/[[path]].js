@@ -236,7 +236,9 @@ async function getSitesStatus(env) {
       groupId: site.groupId || 'default',
       showUrl: site.showUrl || false,
       sslCert: site.sslCert || null,
-      sslCertLastCheck: site.sslCertLastCheck || 0
+      sslCertLastCheck: site.sslCertLastCheck || 0,
+      sortOrder: site.sortOrder || 0,
+      createdAt: site.createdAt || 0
     };
     if (site.showUrl) {
       base.url = site.url;
@@ -261,7 +263,9 @@ async function getDashboard(env) {
       groupId: site.groupId || 'default',
       showUrl: site.showUrl || false,
       sslCert: site.sslCert || null,
-      sslCertLastCheck: site.sslCertLastCheck || 0
+      sslCertLastCheck: site.sslCertLastCheck || 0,
+      sortOrder: site.sortOrder || 0,
+      createdAt: site.createdAt || 0
     };
     if (site.showUrl) {
       base.url = site.url;
@@ -392,11 +396,15 @@ async function addSite(request, env) {
       normalizedExpectedCodes = codes.length > 0 ? codes : undefined;
     }
 
+    const groupSites = state.sites.filter(s => s.groupId === targetGroupId);
+    const maxSortOrder = groupSites.reduce((max, s) => Math.max(max, s.sortOrder || 0), -1);
+
     const newSite = {
       id: generateId(),
       name,
       url,
       groupId: targetGroupId,
+      sortOrder: maxSortOrder + 1,
       showUrl: showUrl || false,
       method: finalMethod,
       headers: normalizedHeaders,
@@ -1323,6 +1331,34 @@ async function deleteGroup(env, groupId) {
   }
 }
 
+async function reorderSites(request, env) {
+  try {
+    const { siteIds } = await request.json();
+    
+    if (!Array.isArray(siteIds) || siteIds.length === 0) {
+      return errorResponse('无效的站点ID列表');
+    }
+
+    const state = await getState(env);
+    
+    siteIds.forEach((id, index) => {
+      const site = state.sites.find(s => s.id === id);
+      if (site) {
+        site.sortOrder = index;
+      }
+    });
+
+    await updateState(env, state);
+
+    return jsonResponse({
+      success: true,
+      message: '站点排序已更新'
+    });
+  } catch (error) {
+    return errorResponse('更新排序失败: ' + error.message, 500);
+  }
+}
+
 async function testNotification(request, env) {
   try {
     const { type, siteId } = await request.json();
@@ -1418,6 +1454,11 @@ async function handleAPI(request, env) {
       return await getAllSitesHistory(env, hours);
     }
 
+    if (path === '/api/admin-path' && method === 'GET') {
+      const adminPath = env.ADMIN_PATH || 'admin';
+      return jsonResponse({ path: adminPath });
+    }
+
     if (path === '/api/settings' && method === 'GET') {
       return await getSettings(env);
     }
@@ -1477,6 +1518,10 @@ async function handleAPI(request, env) {
 
     if (path === '/api/test-notification' && method === 'POST') {
       return await testNotification(request, env);
+    }
+
+    if (path === '/api/sites/reorder' && method === 'POST') {
+      return await reorderSites(request, env);
     }
 
     return errorResponse('接口不存在', 404);

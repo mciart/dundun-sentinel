@@ -31,7 +31,6 @@ import GroupManager from '../components/GroupManager';
 import Dialog from '../components/Dialog';
 import { useDialog } from '../hooks/useDialog';
 import StarryBackground from '../components/StarryBackground';
-import ThemeToggle from '../components/ThemeToggle';
 
 export default function AdminPage() {
   const [sites, setSites] = useState([]);
@@ -240,6 +239,15 @@ export default function AdminPage() {
     );
   };
 
+  const handleReorderSites = async (siteIds) => {
+    try {
+      await api.reorderSites(siteIds);
+      loadSites();
+    } catch (error) {
+      showError('排序失败: ' + error.message);
+    }
+  };
+
   const handleTriggerCheck = async () => {
     if (!sites || sites.length === 0) {
       showAlert('没有站点可以检查，请先添加站点！', '提示', 'warning');
@@ -310,33 +318,30 @@ export default function AdminPage() {
             </motion.div>
 
             {/* 操作按钮 */}
-            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               <a
                 href="/"
-                className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                className="p-2 sm:p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 title="返回首页"
               >
-                <Home className="w-4 h-4 sm:w-5 sm:h-5" />
+                <Home className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-300" />
               </a>
 
               <button
                 onClick={handleTriggerCheck}
                 disabled={triggeringCheck || !sites || sites.length === 0}
-                className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 sm:p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title={sites && sites.length > 0 ? "立即检查" : "请先添加站点"}
               >
-                <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${triggeringCheck ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-300 ${triggeringCheck ? 'animate-spin' : ''}`} />
               </button>
-
-              <ThemeToggle />
 
               <button
                 onClick={handleLogout}
-                className="px-2.5 py-2 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-danger-500 text-white hover:bg-danger-600 transition-colors flex items-center gap-1 sm:gap-2"
+                className="p-2 sm:p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-danger-100 dark:hover:bg-danger-900/30 hover:text-danger-600 dark:hover:text-danger-400 transition-colors"
+                title="退出登录"
               >
                 <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">退出登录</span>
-                <span className="sm:hidden text-xs">退出</span>
               </button>
             </div>
           </div>
@@ -588,7 +593,7 @@ export default function AdminPage() {
               groups={groups}
               onEdit={setEditingSite}
               onDelete={handleDeleteSite}
-              onRefresh={loadSites}
+              onReorder={handleReorderSites}
             />
           )}
         </motion.div>

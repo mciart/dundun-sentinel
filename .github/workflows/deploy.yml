@@ -11,6 +11,7 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
       WORKER_NAME: dundun-watch
       KV_TITLE: dundun-watch_MONITOR_DATA
       PAGES_PROJECT: dundun-watch
@@ -142,6 +143,7 @@ jobs:
           ADMIN_PW="${ADMIN_PASSWORD:-$CURRENT_ADMIN}"
           if [ -z "$ADMIN_PW" ]; then ADMIN_PW="admin123456"; fi
 
+          ADMIN_PATH_VALUE="${ADMIN_PATH:-admin}"
           curl -s -X PATCH "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" \
@@ -152,7 +154,8 @@ jobs:
                     \"MONITOR_DATA\": { \"namespace_id\": \"$KV_NAMESPACE_ID\" }
                   },
                   \"env_vars\": {
-                    \"ADMIN_PASSWORD\": null
+                    \"ADMIN_PASSWORD\": null,
+                    \"ADMIN_PATH\": { \"type\": \"plain_text\", \"value\": \"$ADMIN_PATH_VALUE\" }
                   }
                 },
                 \"preview\": {
@@ -160,7 +163,8 @@ jobs:
                     \"MONITOR_DATA\": { \"namespace_id\": \"$KV_NAMESPACE_ID\" }
                   },
                   \"env_vars\": {
-                    \"ADMIN_PASSWORD\": null
+                    \"ADMIN_PASSWORD\": null,
+                    \"ADMIN_PATH\": { \"type\": \"plain_text\", \"value\": \"$ADMIN_PATH_VALUE\" }
                   }
                 }
               }
@@ -197,6 +201,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "默认密码：admin123456（如已配置 ADMIN_PASSWORD 则使用你设置的密码）" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ADMIN_PATH_DISPLAY="${ADMIN_PATH:-admin}"
+          echo "后台地址：$PAGES_URL/$ADMIN_PATH_DISPLAY" >> $GITHUB_STEP_SUMMARY
 
       - name: 部署失败提示
         if: failure()

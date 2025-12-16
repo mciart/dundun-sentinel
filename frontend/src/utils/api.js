@@ -147,4 +147,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ type, siteId }),
     }),
+
+  reorderSites: (siteIds) =>
+    request('/api/sites/reorder', {
+      method: 'POST',
+      body: JSON.stringify({ siteIds }),
+    }),
+
+  getAdminPath: () =>
+    request('/api/admin-path', { auth: false }),
 };
