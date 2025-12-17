@@ -462,8 +462,25 @@ export async function handleAPI(request, env, ctx) {
       const state = await getState(env);
       
       state.sites = state.sites.filter(s => s.id !== siteId);
+      
+      // 删除站点相关的所有数据
       delete state.history[siteId];
       delete state.incidents[siteId];
+      delete state.certificateAlerts?.[siteId];
+      
+      // 从全局事件索引中删除该站点的所有事件
+      if (Array.isArray(state.incidentIndex)) {
+        state.incidentIndex = state.incidentIndex.filter(inc => inc?.siteId !== siteId);
+      }
+      
+      // 清除通知冷却记录
+      if (state.lastNotifications) {
+        Object.keys(state.lastNotifications).forEach(key => {
+          if (key.startsWith(`${siteId}:`)) {
+            delete state.lastNotifications[key];
+          }
+        });
+      }
       
       await updateState(env, state);
 
