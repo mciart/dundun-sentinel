@@ -158,6 +158,37 @@ export async function handleMonitor(env, ctx, forceWrite = false) {
     }
   }
 
+  // SSL 证书检测 - 每次监控时同时检测
+  console.log('开始检测SSL证书...');
+  const certResults = await batchCheckSSLCertificates(state.sites);
+  for (const site of state.sites) {
+    if (site.url) {
+      try {
+        const domain = new URL(site.url).hostname;
+        if (certResults[domain]) {
+          const previousCert = site.sslCert;
+          const nextCert = certResults[domain];
+          site.sslCert = nextCert;
+          site.sslCertLastCheck = Date.now();
+          const inc = handleCertAlert(state, site, previousCert, nextCert);
+          try {
+            const cfg = state.config?.notifications;
+            if (inc && cfg?.enabled && !shouldThrottleAndMark(state, inc, cfg)) {
+              ctx && ctx.waitUntil(sendNotifications(env, inc, site, cfg));
+            }
+          } catch {}
+        } else {
+          // 检测失败或无证书，标记为已检测
+          site.sslCert = null;
+          site.sslCertLastCheck = Date.now();
+        }
+      } catch (e) {
+        console.log(`SSL检测 ${site.name} URL解析失败:`, e.message);
+      }
+    }
+  }
+  console.log(`SSL证书检测完成，共 ${Object.keys(certResults).length} 个站点`);
+
   const retentionMs = state.config.retentionHours * 60 * 60 * 1000;
   cleanupIncidentIndex(state, retentionMs);
 

@@ -1,15 +1,37 @@
 import { useEffect, useState } from 'react';
 
 export default function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
+  // 初始化时立即检测当前主题状态
+  const getInitialTheme = () => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      return savedTheme === 'dark';
+    }
+    // 如果没有保存的主题，检测系统偏好
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  };
+
+  const [isDark, setIsDark] = useState(getInitialTheme);
 
   useEffect(() => {
-
-    const theme = localStorage.getItem('theme') || 'light';
-    setIsDark(theme === 'dark');
-    if (theme === 'dark') {
+    // 同步 DOM 状态
+    if (isDark) {
       document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
+  }, [isDark]);
+
+  useEffect(() => {
+    // 监听系统主题变化（仅当用户没有手动设置时）
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e) => {
+      if (!localStorage.getItem('theme')) {
+        setIsDark(e.matches);
+      }
+    };
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
   const toggleTheme = () => {
