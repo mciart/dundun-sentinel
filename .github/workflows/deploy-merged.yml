@@ -84,24 +84,26 @@ jobs:
         shell: bash
         run: |
           echo "生成临时 wrangler 配置..."
-          cat > wrangler.ci.toml <<'EOF'
-name = "dundun-watch"
-main = "src/index.js"
-compatibility_date = "2024-12-08"
+          cat > wrangler.ci.toml << 'TOMLEOF'
+          name = "dundun-watch"
+          main = "src/index.js"
+          compatibility_date = "2024-12-08"
 
-[assets]
-directory = "./frontend/dist"
-binding = "ASSETS"
-html_handling = "auto-trailing-slash"
-not_found_handling = "single-page-application"
+          [assets]
+          directory = "./frontend/dist"
+          binding = "ASSETS"
+          html_handling = "auto-trailing-slash"
+          not_found_handling = "single-page-application"
 
-[triggers]
-crons = ["* * * * *", "0 4 * * *"]
-EOF
+          [triggers]
+          crons = ["* * * * *", "0 4 * * *"]
+          TOMLEOF
+          sed -i '' 's/^          //' wrangler.ci.toml
           echo "" >> wrangler.ci.toml
           echo "[[kv_namespaces]]" >> wrangler.ci.toml
           echo "binding = \"MONITOR_DATA\"" >> wrangler.ci.toml
           echo "id = \"${KV_NAMESPACE_ID}\"" >> wrangler.ci.toml
+          cat wrangler.ci.toml
 
       - name: 部署 Worker + Assets
         env:
