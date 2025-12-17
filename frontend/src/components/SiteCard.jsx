@@ -71,7 +71,7 @@ export default function SiteCard({ site, index }) {
             </h3>
             
             {/* SSL证书状态 - 美化版 */}
-            {site.sslCertLastCheck > 0 && site.sslCert && (
+            {site.sslCertLastCheck > 0 && site.sslCert && daysLeft !== null && (
               <div className={`
                 inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0
                 ${certExpired

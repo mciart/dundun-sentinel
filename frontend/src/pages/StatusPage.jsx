@@ -182,7 +182,7 @@ export default function StatusPage() {
             </motion.div>
 
             {/* 中间 - 最后监测时间 */}
-            {lastCheckTime && (
+            {lastCheckTime > 0 && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
