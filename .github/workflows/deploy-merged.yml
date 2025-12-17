@@ -87,24 +87,27 @@ jobs:
         run: |
           echo "生成临时 wrangler 配置..."
           echo "KV_NAMESPACE_ID: $KV_NAMESPACE_ID"
-          cat > wrangler.ci.toml <<TOMLEOF
-name = "dundun-watch"
-main = "src/index.js"
-compatibility_date = "2024-12-08"
-
-[assets]
-directory = "./frontend/dist"
-binding = "ASSETS"
-html_handling = "auto-trailing-slash"
-not_found_handling = "single-page-application"
-
-[triggers]
-crons = ["* * * * *", "0 4 * * *"]
-
-[[kv_namespaces]]
-binding = "MONITOR_DATA"
-id = "${KV_NAMESPACE_ID}"
-TOMLEOF
+          cat > wrangler.ci.toml <<'TOMLEOF'
+          name = "dundun-watch"
+          main = "src/index.js"
+          compatibility_date = "2024-12-08"
+          
+          [assets]
+          directory = "./frontend/dist"
+          binding = "ASSETS"
+          html_handling = "auto-trailing-slash"
+          not_found_handling = "single-page-application"
+          
+          [triggers]
+          crons = ["* * * * *", "0 4 * * *"]
+          TOMLEOF
+          cat >> wrangler.ci.toml <<TOMLEOF2
+          
+          [[kv_namespaces]]
+          binding = "MONITOR_DATA"
+          id = "${KV_NAMESPACE_ID}"
+          TOMLEOF2
+          sed 's/^          //' wrangler.ci.toml > wrangler.ci.toml.tmp && mv wrangler.ci.toml.tmp wrangler.ci.toml
           echo "生成的配置文件:"
           cat wrangler.ci.toml
 
