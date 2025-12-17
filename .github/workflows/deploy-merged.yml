@@ -82,27 +82,30 @@ jobs:
 
       - name: 生成临时 wrangler 配置
         shell: bash
+        env:
+          KV_NAMESPACE_ID: ${{ env.KV_NAMESPACE_ID }}
         run: |
           echo "生成临时 wrangler 配置..."
-          cat > wrangler.ci.toml << 'TOMLEOF'
-          name = "dundun-watch"
-          main = "src/index.js"
-          compatibility_date = "2024-12-08"
+          echo "KV_NAMESPACE_ID: $KV_NAMESPACE_ID"
+          cat > wrangler.ci.toml <<TOMLEOF
+name = "dundun-watch"
+main = "src/index.js"
+compatibility_date = "2024-12-08"
 
-          [assets]
-          directory = "./frontend/dist"
-          binding = "ASSETS"
-          html_handling = "auto-trailing-slash"
-          not_found_handling = "single-page-application"
+[assets]
+directory = "./frontend/dist"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+not_found_handling = "single-page-application"
 
-          [triggers]
-          crons = ["* * * * *", "0 4 * * *"]
-          TOMLEOF
-          sed -i '' 's/^          //' wrangler.ci.toml
-          echo "" >> wrangler.ci.toml
-          echo "[[kv_namespaces]]" >> wrangler.ci.toml
-          echo "binding = \"MONITOR_DATA\"" >> wrangler.ci.toml
-          echo "id = \"${KV_NAMESPACE_ID}\"" >> wrangler.ci.toml
+[triggers]
+crons = ["* * * * *", "0 4 * * *"]
+
+[[kv_namespaces]]
+binding = "MONITOR_DATA"
+id = "${KV_NAMESPACE_ID}"
+TOMLEOF
+          echo "生成的配置文件:"
           cat wrangler.ci.toml
 
       - name: 部署 Worker + Assets
