@@ -36,13 +36,13 @@
 
 <div align="center">
 
-**首页**
+| 主页 - 浅色模式 | 主页 - 深色模式 |
+|:---:|:---:|
+| <img src="docs/1.png" alt="主页浅色模式" width="400"> | <img src="docs/2.png" alt="主页深色模式" width="400"> |
 
-<img src="docs/shouye.png" alt="首页" width="800">
-
-**后台**
-
-<img src="docs/houtai.png" alt="后台" width="800">
+| 后台 - 浅色模式 | 后台 - 深色模式 |
+|:---:|:---:|
+| <img src="docs/3.png" alt="后台浅色模式" width="400"> | <img src="docs/4.png" alt="后台深色模式" width="400"> |
 
 </div>
 
