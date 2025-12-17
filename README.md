@@ -101,13 +101,24 @@
 
 点击 **New repository secret**，添加以下密钥：
 
+#### 必填配置
+
 | Name | Value | 说明 |
 |------|-------|------|
 | `CLOUDFLARE_API_TOKEN` | 你的 API Token | **必填** |
 | `CLOUDFLARE_ACCOUNT_ID` | 你的 Account ID | **必填** |
-| `KV_NAMESPACE_ID` | 你的 KV Namespace ID | **可选，自动创建** |
+
+#### 可选配置
+
+| Name | Value | 说明 |
+|------|-------|------|
+| `KV_NAMESPACE_ID` | 你的 KV Namespace ID | 可选，首次部署自动创建 |
+| `ADMIN_PATH` | 自定义后台路径，如 `/my-admin` | 可选，默认 `/admin` |
+| `ADMIN_PASSWORD` | 自定义后台密码 | 可选，默认 `admin123456` |
 
 > 💡 **提示**：KV 命名空间会在首次部署时自动创建，无需手动配置！
+> 
+> 🔒 **安全建议**：强烈建议修改默认后台路径和密码，避免被恶意访问。
 
 ### 第四步：运行部署
 

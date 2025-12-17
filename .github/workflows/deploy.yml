@@ -123,6 +123,35 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Configure Admin Settings
+        if: ${{ secrets.ADMIN_PATH != '' || secrets.ADMIN_PASSWORD != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          KV_ID: ${{ steps.kv_setup.outputs.kv_id }}
+          ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          # 设置自定义后台路径
+          if [ -n "$ADMIN_PATH" ] && [ "$ADMIN_PATH" != "" ]; then
+            echo "设置自定义后台路径: $ADMIN_PATH"
+            curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces/$KV_ID/values/admin_path" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: text/plain" \
+              --data "$ADMIN_PATH"
+          fi
+          
+          # 设置自定义密码
+          if [ -n "$ADMIN_PASSWORD" ] && [ "$ADMIN_PASSWORD" != "" ]; then
+            echo "设置自定义后台密码"
+            curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces/$KV_ID/values/admin_password" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: text/plain" \
+              --data "$ADMIN_PASSWORD"
+          fi
+          
+          echo "管理员配置完成"
+
   # PR 预览部署（可选）
   preview:
     name: Preview Deployment
