@@ -26,7 +26,7 @@ jobs:
       - name: 安装 Wrangler
         run: |
           echo "安装 Wrangler CLI..."
-          npm i -g wrangler@3
+          npm i -g wrangler@latest
 
       - name: 发现 Cloudflare 账户 ID
         shell: bash
@@ -92,10 +92,12 @@ jobs:
           [assets]
           directory = "./frontend/dist"
           binding = "ASSETS"
+          html_handling = "auto-trailing-slash"
+          not_found_handling = "single-page-application"
           
-          kv_namespaces = [
-            { binding = "MONITOR_DATA", id = "${KV_NAMESPACE_ID}" }
-          ]
+          [[kv_namespaces]]
+          binding = "MONITOR_DATA"
+          id = "${KV_NAMESPACE_ID}"
           
           [triggers]
           crons = ["* * * * *", "0 4 * * *"]
