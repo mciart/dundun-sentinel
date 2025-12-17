@@ -30,8 +30,8 @@ function isValidDomain(string) {
   if (!string || typeof string !== 'string') return false;
   // 移除可能的协议前缀和路径
   const domain = string.replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
-  // 域名正则：支持子域名、顶级域名
-  const domainRegex = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
+  // 域名正则：支持子域名、顶级域名、下划线（如 _dmarc, _domainkey 等）
+  const domainRegex = /^(?:[a-zA-Z0-9_](?:[a-zA-Z0-9_-]{0,61}[a-zA-Z0-9_])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
   return domainRegex.test(domain) && domain.length <= 253;
 }
 
