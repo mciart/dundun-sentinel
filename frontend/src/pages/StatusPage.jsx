@@ -291,12 +291,17 @@ export default function StatusPage() {
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 pl-9 sm:pl-10">
                   {(() => {
                     const groupObj = groups.find(g => g.name === group);
-                    return groupObj?.icon ? (
+                    if (!groupObj?.icon) return null;
+                    // 确保图标类名格式正确：fa-solid fa-xxx 或 fa-brands fa-xxx
+                    const iconClass = groupObj.icon.startsWith('fa-') 
+                      ? `fa-solid ${groupObj.icon}` 
+                      : groupObj.icon;
+                    return (
                       <i 
-                        className={`${groupObj.icon} w-10 h-10 flex items-center justify-center text-3xl flex-shrink-0`}
+                        className={`${iconClass} flex items-center justify-center text-3xl flex-shrink-0`}
                         style={{ color: groupObj.iconColor || 'currentColor' }}
                       />
-                    ) : null;
+                    );
                   })()}
                   <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">
                     {group}
