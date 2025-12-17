@@ -452,6 +452,8 @@ export async function handleAPI(request, env, ctx) {
       const newMonitorType = updates.monitorType || oldSite.monitorType || 'http';
       const urlChanged = updates.url && updates.url !== oldSite.url;
       const monitorTypeChanged = updates.monitorType && updates.monitorType !== oldSite.monitorType;
+      const dnsRecordTypeChanged = updates.dnsRecordType && updates.dnsRecordType !== oldSite.dnsRecordType;
+      const dnsExpectedValueChanged = updates.dnsExpectedValue !== undefined && updates.dnsExpectedValue !== oldSite.dnsExpectedValue;
       
       // 如果提供了新 URL，验证格式
       if (updates.url) {
@@ -469,8 +471,9 @@ export async function handleAPI(request, env, ctx) {
       // 合并更新
       state.sites[siteIndex] = { ...oldSite, ...updates };
       
-      // 如果 URL 或监控类型改变了，重置检测状态
-      if (urlChanged || monitorTypeChanged) {
+      // 如果 URL、监控类型、DNS记录类型或期望值改变了，重置检测状态
+      const needReset = urlChanged || monitorTypeChanged || dnsRecordTypeChanged || dnsExpectedValueChanged;
+      if (needReset) {
         state.sites[siteIndex].status = 'unknown';
         state.sites[siteIndex].statusRaw = null;
         state.sites[siteIndex].statusPending = null;
@@ -485,7 +488,8 @@ export async function handleAPI(request, env, ctx) {
         if (state.history && state.history[siteId]) {
           state.history[siteId] = [];
         }
-        console.log(`🔄 站点 ${oldSite.name} 配置已变更，重置检测状态`);
+        const changeType = urlChanged ? 'URL' : monitorTypeChanged ? '监控类型' : dnsRecordTypeChanged ? 'DNS记录类型' : 'DNS期望值';
+        console.log(`🔄 站点 ${oldSite.name} ${changeType}已变更，重置检测状态`);
       }
       
       await updateState(env, state);

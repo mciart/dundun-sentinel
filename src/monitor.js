@@ -217,6 +217,9 @@ export async function handleMonitor(env, ctx, forceWrite = false) {
     console.log(`⏭️ 跳过SSL检测，距下次检测 ${minutesUntilNext} 分钟`);
   }
 
+  // 清理孤立数据（每次监控都执行，保持数据同步）
+  cleanupOrphanedData(state);
+
   const retentionMs = state.config.retentionHours * 60 * 60 * 1000;
   cleanupIncidentIndex(state, retentionMs);
 
@@ -527,6 +530,69 @@ function cleanupOldData(state, siteId) {
       if (!timestamp) return true;
       return now - timestamp <= retentionMs;
     });
+  }
+}
+
+/**
+ * 清理孤立数据 - 清除已删除站点的残留数据
+ */
+function cleanupOrphanedData(state) {
+  const validSiteIds = new Set(state.sites.map(s => s.id));
+  let cleanedCount = 0;
+  
+  // 清理孤立的历史记录
+  if (state.history) {
+    Object.keys(state.history).forEach(siteId => {
+      if (!validSiteIds.has(siteId)) {
+        delete state.history[siteId];
+        cleanedCount++;
+      }
+    });
+  }
+  
+  // 清理孤立的站点事件
+  if (state.incidents) {
+    Object.keys(state.incidents).forEach(siteId => {
+      if (!validSiteIds.has(siteId)) {
+        delete state.incidents[siteId];
+        cleanedCount++;
+      }
+    });
+  }
+  
+  // 清理孤立的证书告警
+  if (state.certificateAlerts) {
+    Object.keys(state.certificateAlerts).forEach(siteId => {
+      if (!validSiteIds.has(siteId)) {
+        delete state.certificateAlerts[siteId];
+        cleanedCount++;
+      }
+    });
+  }
+  
+  // 清理全局事件索引中的孤立事件
+  if (Array.isArray(state.incidentIndex)) {
+    const beforeCount = state.incidentIndex.length;
+    state.incidentIndex = state.incidentIndex.filter(inc => {
+      if (!inc || !inc.siteId) return false;
+      return validSiteIds.has(inc.siteId);
+    });
+    cleanedCount += beforeCount - state.incidentIndex.length;
+  }
+  
+  // 清理孤立的通知冷却记录
+  if (state.lastNotifications) {
+    Object.keys(state.lastNotifications).forEach(key => {
+      const siteId = key.split(':')[0];
+      if (!validSiteIds.has(siteId)) {
+        delete state.lastNotifications[key];
+        cleanedCount++;
+      }
+    });
+  }
+  
+  if (cleanedCount > 0) {
+    console.log(`🧹 清理了 ${cleanedCount} 条孤立数据`);
   }
 }
 
@@ -1139,15 +1205,13 @@ async function checkDnsSite(site, checkTime) {
       };
     }
     
-    // 如果设置了期望值，验证是否匹配
+    // 如果设置了期望值，验证是否匹配（精确匹配）
     if (expectedValue) {
-      const normalizedExpected = expectedValue.toLowerCase().replace(/\.$/, '');
+      const normalizedExpected = expectedValue.toLowerCase().replace(/\.$/, '').replace(/^"|"$/g, '');
       const matched = records.some(r => {
-        const normalizedRecord = String(r).toLowerCase().replace(/\.$/, '');
-        // 支持部分匹配（包含关系）
-        return normalizedRecord === normalizedExpected || 
-               normalizedRecord.includes(normalizedExpected) ||
-               normalizedExpected.includes(normalizedRecord);
+        // 移除尾部点号和引号，转小写后精确比较
+        const normalizedRecord = String(r).toLowerCase().replace(/\.$/, '').replace(/^"|"$/g, '');
+        return normalizedRecord === normalizedExpected;
       });
       
       if (!matched) {
