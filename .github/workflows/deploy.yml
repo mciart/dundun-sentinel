@@ -71,9 +71,51 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Setup KV Namespace
+        id: kv_setup
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          KV_ID="${{ secrets.KV_NAMESPACE_ID }}"
+          
+          # 如果没有提供 KV_NAMESPACE_ID，自动创建
+          if [ -z "$KV_ID" ] || [ "$KV_ID" = "" ]; then
+            echo "KV_NAMESPACE_ID 未设置，正在自动创建..."
+            
+            # 检查是否已存在同名 KV
+            EXISTING=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces?per_page=100" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" | jq -r '.result[] | select(.title=="dundun-watch-MONITOR_DATA") | .id')
+            
+            if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+              echo "找到已存在的 KV 命名空间: $EXISTING"
+              KV_ID="$EXISTING"
+            else
+              # 创建新的 KV 命名空间
+              RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                -H "Content-Type: application/json" \
+                --data '{"title":"dundun-watch-MONITOR_DATA"}')
+              
+              KV_ID=$(echo $RESPONSE | jq -r '.result.id')
+              
+              if [ -z "$KV_ID" ] || [ "$KV_ID" = "null" ]; then
+                echo "创建 KV 命名空间失败: $RESPONSE"
+                exit 1
+              fi
+              
+              echo "成功创建 KV 命名空间: $KV_ID"
+            fi
+          else
+            echo "使用已配置的 KV_NAMESPACE_ID: $KV_ID"
+          fi
+          
+          echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
+
       - name: Update KV Namespace ID
         run: |
-          sed -i 's/YOUR_KV_NAMESPACE_ID/${{ secrets.KV_NAMESPACE_ID }}/g' wrangler.toml
+          sed -i 's/YOUR_KV_NAMESPACE_ID/${{ steps.kv_setup.outputs.kv_id }}/g' wrangler.toml
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
@@ -106,9 +148,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Setup KV Namespace (Preview)
+        id: kv_setup_preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          KV_ID="${{ secrets.KV_NAMESPACE_ID }}"
+          
+          if [ -z "$KV_ID" ] || [ "$KV_ID" = "" ]; then
+            # 检查是否已存在同名 KV
+            EXISTING=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces?per_page=100" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" | jq -r '.result[] | select(.title=="dundun-watch-MONITOR_DATA") | .id')
+            
+            if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+              KV_ID="$EXISTING"
+            else
+              # 预览模式不创建，使用占位符
+              KV_ID="preview-placeholder"
+            fi
+          fi
+          
+          echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
+
       - name: Update KV Namespace ID
         run: |
-          sed -i 's/YOUR_KV_NAMESPACE_ID/${{ secrets.KV_NAMESPACE_ID }}/g' wrangler.toml
+          sed -i 's/YOUR_KV_NAMESPACE_ID/${{ steps.kv_setup_preview.outputs.kv_id }}/g' wrangler.toml
 
       - name: Deploy Preview
         uses: cloudflare/wrangler-action@v3

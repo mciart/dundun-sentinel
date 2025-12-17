@@ -25,7 +25,8 @@
 | 更改 | 说明 |
 |------|------|
 | 🔗 **Workers + Pages 合并** | 将 Cloudflare Workers 和 Pages 合二为一，简化部署流程 |
-| 🔒 **SSL 证书实时检测** | SSL 证书检测集成到主监控流程，每次检测网站状态时同步检测 SSL 证书 |
+| � **KV 自动创建** | 首次部署时自动创建 KV 命名空间，无需手动配置 |
+| �🔒 **SSL 证书实时检测** | SSL 证书检测集成到主监控流程，每次检测网站状态时同步检测 SSL 证书 |
 | 🌙 **主题开关修复** | 修复自动调整为深色模式时，开关显示在浅色模式位置的问题 |
 | 🖼️ **Favicon 修复** | 修复 favicon.ico 图标不显示的问题 |
 
@@ -66,7 +67,7 @@
 
 ## 🚀 快速部署
 
-整个过程约 **10 分钟**，无需编程知识。
+整个过程约 **5 分钟**，无需编程知识。
 
 ### 第一步：Fork 项目
 
@@ -94,14 +95,6 @@
 3. 在右侧栏找到 **Account ID**
 4. 复制该 ID
 
-#### 2.3 创建 KV 命名空间
-
-1. 进入 **Workers & Pages** → **KV**
-2. 点击 **Create a namespace**
-3. 名称输入 `dundun-watch-MONITOR_DATA`
-4. 点击 **Add**
-5. 复制生成的 **Namespace ID**
-
 ### 第三步：配置 GitHub Secrets
 
 打开你 Fork 的项目 → **Settings** → **Secrets and variables** → **Actions**
@@ -112,7 +105,9 @@
 |------|-------|------|
 | `CLOUDFLARE_API_TOKEN` | 你的 API Token | **必填** |
 | `CLOUDFLARE_ACCOUNT_ID` | 你的 Account ID | **必填** |
-| `KV_NAMESPACE_ID` | 你的 KV Namespace ID | **必填** |
+| `KV_NAMESPACE_ID` | 你的 KV Namespace ID | **可选，自动创建** |
+
+> 💡 **提示**：KV 命名空间会在首次部署时自动创建，无需手动配置！
 
 ### 第四步：运行部署
 
