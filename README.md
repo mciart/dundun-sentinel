@@ -8,7 +8,7 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange)](https://workers.cloudflare.com/)
-[![GitHub Stars](https://img.shields.io/github/stars/hjp5211314/dundun-watch?style=social)](https://github.com/hjp5211314/dundun-watch)
+[![GitHub Stars](https://img.shields.io/github/stars/mciart/dundun-watch?style=social)](https://github.com/mciart/dundun-watch)
 
 [演示站点](https://wzjk.de5.net/) · [快速部署](#-快速部署) · [功能介绍](#-功能特性) · [本地开发](#-本地开发)
 
@@ -71,7 +71,7 @@
 
 ### 第一步：Fork 项目
 
-1. 打开 [dundun-watch](https://github.com/hjp5211314/dundun-watch)
+1. 打开 [dundun-watch](https://github.com/mciart/dundun-watch)
 2. 点击右上角 **Fork** 按钮
 3. 点击 **Create fork** 完成
 
@@ -244,7 +244,7 @@ Cloudflare Workers 支持多种域名绑定方式：
 
 ```bash
 # 克隆项目
-git clone https://github.com/hjp5211314/dundun-watch.git
+git clone https://github.com/mciart/dundun-watch.git
 cd dundun-watch
 
 # 安装依赖
