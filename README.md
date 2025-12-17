@@ -49,9 +49,13 @@
 |:---:|:---:|
 | <img src="docs/1.png" alt="主页浅色模式" width="400"> | <img src="docs/2.png" alt="主页深色模式" width="400"> |
 
-| 后台 - 浅色模式 | 后台 - 深色模式 |
+| 后台首页 - 浅色模式 | 后台首页 - 深色模式 |
 |:---:|:---:|
-| <img src="docs/3.png" alt="后台浅色模式" width="400"> | <img src="docs/4.png" alt="后台深色模式" width="400"> |
+| <img src="docs/3.png" alt="后台首页浅色模式" width="400"> | <img src="docs/4.png" alt="后台首页深色模式" width="400"> |
+
+| 后台设置 - 浅色模式 | 后台通知 - 深色模式 |
+|:---:|:---:|
+| <img src="docs/5.png" alt="后台设置浅色模式" width="400"> | <img src="docs/6.png" alt="后台通知深色模式" width="400"> |
 
 </div>
 
