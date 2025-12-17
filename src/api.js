@@ -422,10 +422,34 @@ export async function handleAPI(request, env, ctx) {
         return errorResponse('站点不存在', 404);
       }
 
-      state.sites[siteIndex] = { ...state.sites[siteIndex], ...updates };
+      const oldSite = state.sites[siteIndex];
+      const urlChanged = updates.url && updates.url !== oldSite.url;
+      
+      // 合并更新
+      state.sites[siteIndex] = { ...oldSite, ...updates };
+      
+      // 如果 URL 改变了，重置检测状态（清除防抖状态，让下次检测立即生效）
+      if (urlChanged) {
+        state.sites[siteIndex].status = 'unknown';
+        state.sites[siteIndex].statusRaw = null;
+        state.sites[siteIndex].statusPending = null;
+        state.sites[siteIndex].statusPendingStartTime = null;
+        state.sites[siteIndex].lastCheckTime = null;
+        state.sites[siteIndex].responseTime = null;
+        state.sites[siteIndex].message = null;
+        // 清除 SSL 证书信息（因为 URL 变了，证书也会不同）
+        state.sites[siteIndex].sslCert = null;
+        state.sites[siteIndex].sslCertLastCheck = null;
+        // 清除历史记录
+        if (state.history && state.history[siteId]) {
+          state.history[siteId] = [];
+        }
+        console.log(`🔄 站点 ${oldSite.name} URL 已变更，重置检测状态`);
+      }
+      
       await updateState(env, state);
 
-      return jsonResponse({ success: true, site: state.sites[siteIndex] });
+      return jsonResponse({ success: true, site: state.sites[siteIndex], urlChanged });
     } catch (error) {
       return errorResponse('更新站点失败: ' + error.message, 500);
     }
