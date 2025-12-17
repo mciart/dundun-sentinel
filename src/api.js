@@ -35,8 +35,19 @@ function isValidDomain(string) {
   return domainRegex.test(domain) && domain.length <= 253;
 }
 
-function verifyPassword(password, correctPassword) {
-  return password === correctPassword;
+// 使用 SHA-256 哈希密码
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 验证密码（比对哈希值）
+async function verifyPassword(password, storedHash) {
+  const hashedInput = await hashPassword(password);
+  return hashedInput === storedHash;
 }
 
 function generateToken(payload) {
@@ -80,9 +91,11 @@ async function handleLogin(request, env) {
     }
 
     const kvAdmin = await env.MONITOR_DATA.get('admin_password');
-    const adminPassword = kvAdmin || 'admin123456';
+    // 默认密码 admin123456 的 SHA-256 哈希
+    const defaultPasswordHash = 'ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78';
+    const adminPassword = kvAdmin || defaultPasswordHash;
 
-    if (!verifyPassword(password, adminPassword)) {
+    if (!await verifyPassword(password, adminPassword)) {
       return errorResponse('密码错误', 401);
     }
 
@@ -689,13 +702,17 @@ export async function handleAPI(request, env, ctx) {
       }
 
       const kvAdmin = await env.MONITOR_DATA.get('admin_password');
-      const adminPassword = kvAdmin || 'admin123456';
+      // 默认密码 admin123456 的 SHA-256 哈希
+      const defaultPasswordHash = 'ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78';
+      const adminPassword = kvAdmin || defaultPasswordHash;
 
-      if (!verifyPassword(oldPassword, adminPassword)) {
+      if (!await verifyPassword(oldPassword, adminPassword)) {
         return errorResponse('旧密码错误', 401);
       }
 
-      await env.MONITOR_DATA.put('admin_password', newPassword);
+      // 新密码使用哈希存储
+      const hashedNewPassword = await hashPassword(newPassword);
+      await env.MONITOR_DATA.put('admin_password', hashedNewPassword);
       return jsonResponse({ success: true, message: '密码修改成功' });
     } catch (error) {
       return errorResponse('修改密码失败: ' + error.message, 500);
