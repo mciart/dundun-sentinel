@@ -1,0 +1,149 @@
+name: 部署（Cloudflare Workers + Assets）
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
+      WORKER_NAME: dundun-watch
+      KV_TITLE: dundun-watch_MONITOR_DATA
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node 环境
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装 Wrangler
+        run: |
+          echo "安装 Wrangler CLI..."
+          npm i -g wrangler@3
+
+      - name: 发现 Cloudflare 账户 ID
+        shell: bash
+        run: |
+          set -e
+          echo "开始发现 Cloudflare 账户 ID..."
+          ACC_JSON=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" https://api.cloudflare.com/client/v4/accounts)
+          ACCOUNT_ID=$(echo "$ACC_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);console.log(o.result?.[0]?.id||'');}catch(e){console.log('');}})")
+          if [ -z "$ACCOUNT_ID" ]; then echo 'Failed to discover Account ID'; exit 1; fi
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+
+      - name: 创建或复用 KV 命名空间
+        shell: bash
+        run: |
+          set -e
+          echo "创建或复用 KV 命名空间：$KV_TITLE"
+          CREATE_JSON=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"title\": \"$KV_TITLE\"}") || true
+          KV_NAMESPACE_ID=$(echo "$CREATE_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);if(o?.success&&o?.result?.id)console.log(o.result.id);else console.log('');}catch(e){console.log('');}})")
+          if [ -z "$KV_NAMESPACE_ID" ]; then
+            LIST_JSON=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces?per_page=100" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json")
+            KV_NAMESPACE_ID=$(echo "$LIST_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const o=JSON.parse(d);const arr=o?.result||[];const f=arr.find(x=>x?.title==='${KV_TITLE}');console.log(f?f.id:'');}catch(e){console.log('');}})")
+          fi
+          if [ -z "$KV_NAMESPACE_ID" ]; then
+            echo 'Failed to get KV namespace id' >&2
+            exit 1
+          fi
+          echo "KV_NAMESPACE_ID=$KV_NAMESPACE_ID" >> $GITHUB_ENV
+
+      - name: 写入管理员密码和后台路径到 KV
+        env:
+          ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
+          ADMIN_PATH: ${{ env.ADMIN_PATH }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+          KV_NAMESPACE_ID: ${{ env.KV_NAMESPACE_ID }}
+        run: |
+          echo "写入管理员密码到 KV..."
+          ADMIN_PW=${ADMIN_PASSWORD:-admin123456}
+          wrangler kv:key put --namespace-id $KV_NAMESPACE_ID admin_password "$ADMIN_PW"
+          echo "写入后台路径到 KV..."
+          ADMIN_PATH_VALUE=${ADMIN_PATH:-admin}
+          wrangler kv:key put --namespace-id $KV_NAMESPACE_ID admin_path "$ADMIN_PATH_VALUE"
+
+      - name: 构建前端
+        run: |
+          echo "开始构建前端..."
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: 生成临时 wrangler 配置
+        shell: bash
+        run: |
+          echo "生成临时 wrangler 配置..."
+          cat > wrangler.ci.toml <<EOF
+          name = "${WORKER_NAME}"
+          main = "src/index.js"
+          compatibility_date = "2024-12-08"
+          
+          [assets]
+          directory = "./frontend/dist"
+          binding = "ASSETS"
+          
+          kv_namespaces = [
+            { binding = "MONITOR_DATA", id = "${KV_NAMESPACE_ID}" }
+          ]
+          
+          [triggers]
+          crons = ["* * * * *", "0 4 * * *"]
+          EOF
+
+      - name: 部署 Worker + Assets
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "开始部署 Worker + Assets..."
+          wrangler deploy --config wrangler.ci.toml
+
+      - name: 获取 Worker 域名
+        run: |
+          WORKER_URL="https://${WORKER_NAME}.${CLOUDFLARE_ACCOUNT_ID}.workers.dev"
+          echo "WORKER_URL=$WORKER_URL" >> $GITHUB_ENV
+
+      - name: 部署成功摘要
+        if: success()
+        run: |
+          echo "## 🎉 部署成功" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**访问地址：** $WORKER_URL" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ADMIN_PATH_DISPLAY="${ADMIN_PATH:-admin}"
+          echo "- 🏠 首页：$WORKER_URL" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔐 后台：$WORKER_URL/$ADMIN_PATH_DISPLAY" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔑 密码：admin123456（如已配置 ADMIN_PASSWORD 则使用你设置的密码）" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 架构说明" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ 已合并为单一 Worker" >> $GITHUB_STEP_SUMMARY
+          echo "- 前端静态资源：Workers Assets" >> $GITHUB_STEP_SUMMARY
+          echo "- API 接口：Worker 处理" >> $GITHUB_STEP_SUMMARY
+          echo "- 定时监控：Worker Cron" >> $GITHUB_STEP_SUMMARY
+          echo "- 数据存储：Workers KV" >> $GITHUB_STEP_SUMMARY
+
+      - name: 部署失败提示
+        if: failure()
+        run: |
+          echo "## ❌ 部署失败" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "请检查以下内容：" >> $GITHUB_STEP_SUMMARY
+          echo "1. CLOUDFLARE_API_TOKEN 是否正确" >> $GITHUB_STEP_SUMMARY
+          echo "2. 前端构建是否成功" >> $GITHUB_STEP_SUMMARY
+          echo "3. 查看上方日志了解详细错误" >> $GITHUB_STEP_SUMMARY

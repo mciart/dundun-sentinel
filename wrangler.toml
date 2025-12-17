@@ -1,0 +1,27 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "dundun-watch"
+main = "src/index.js"
+compatibility_date = "2024-12-08"
+
+# Workers Assets - 静态资源配置
+[assets]
+directory = "./frontend/dist"
+binding = "ASSETS"
+# SPA 模式：所有非匹配路由返回 index.html
+html_handling = "auto-trailing-slash"
+not_found_handling = "single-page-application"
+
+# KV 命名空间绑定
+# 本地开发时会自动创建模拟 KV
+[[kv_namespaces]]
+binding = "MONITOR_DATA"
+id = "local-kv-id"
+preview_id = "local-kv-id"
+
+# 定时任务
+[triggers]
+crons = ["* * * * *", "0 4 * * *"]
+
+# 本地开发配置
+[vars]
+ENVIRONMENT = "development"
