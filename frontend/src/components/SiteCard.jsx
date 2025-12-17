@@ -71,7 +71,7 @@ export default function SiteCard({ site, index }) {
             </h3>
             
             {/* SSL证书状态 - 美化版 */}
-            {site.sslCertLastCheck && site.sslCert && (
+            {!!site.sslCertLastCheck && !!site.sslCert && (
               <div className={`
                 inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0
                 ${certExpired
@@ -97,7 +97,7 @@ export default function SiteCard({ site, index }) {
             )}
             
             {/* 无证书状态 */}
-            {site.sslCertLastCheck && !site.sslCert && (
+            {!!site.sslCertLastCheck && !site.sslCert && (
               <div className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 flex-shrink-0">
                 <ShieldAlert className="w-3 h-3 flex-shrink-0" />
                 <span>证书无效</span>
