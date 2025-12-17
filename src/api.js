@@ -230,7 +230,10 @@ export async function handleAPI(request, env, ctx) {
         pageTitle: state.config?.pageTitle || '网站监控'
       };
 
-      return jsonResponse({ sites: publicSites, groups, settings });
+      // 返回事件列表供首页轮播使用
+      const incidents = Array.isArray(state.incidentIndex) ? state.incidentIndex : [];
+
+      return jsonResponse({ sites: publicSites, groups, settings, incidents });
     } catch (error) {
       return errorResponse('获取仪表盘失败: ' + error.message, 500);
     }
