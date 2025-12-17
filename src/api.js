@@ -450,10 +450,33 @@ export async function handleAPI(request, env, ctx) {
 
       const oldSite = state.sites[siteIndex];
       const newMonitorType = updates.monitorType || oldSite.monitorType || 'http';
-      const urlChanged = updates.url && updates.url !== oldSite.url;
-      const monitorTypeChanged = updates.monitorType && updates.monitorType !== oldSite.monitorType;
-      const dnsRecordTypeChanged = updates.dnsRecordType && updates.dnsRecordType !== oldSite.dnsRecordType;
-      const dnsExpectedValueChanged = updates.dnsExpectedValue !== undefined && updates.dnsExpectedValue !== oldSite.dnsExpectedValue;
+      
+      // 定义会影响检测结果的关键字段（修改后需要重置状态和历史记录）
+      // 添加新检测类型时，只需在此列表中添加相关字段即可
+      const criticalFields = [
+        'url',                      // 监控目标地址
+        'monitorType',              // 监控类型 (http/dns/...)
+        'method',                   // HTTP 请求方法
+        'expectedCodes',            // HTTP 期望状态码
+        'responseKeyword',          // HTTP 期望关键词
+        'responseForbiddenKeyword', // HTTP 禁止关键词
+        'dnsRecordType',            // DNS 记录类型
+        'dnsExpectedValue',         // DNS 期望值
+        // 未来添加新检测类型的字段，只需在这里添加即可
+        // 例如: 'tcpPort', 'icmpTimeout', 'sslExpectedIssuer' 等
+      ];
+      
+      // 检查是否有关键字段发生变化
+      const changedFields = criticalFields.filter(field => {
+        if (updates[field] === undefined) return false;
+        // 对于数组类型（如 expectedCodes），需要深度比较
+        if (Array.isArray(updates[field]) && Array.isArray(oldSite[field])) {
+          return JSON.stringify(updates[field]) !== JSON.stringify(oldSite[field]);
+        }
+        return updates[field] !== oldSite[field];
+      });
+      
+      const needReset = changedFields.length > 0;
       
       // 如果提供了新 URL，验证格式
       if (updates.url) {
@@ -471,8 +494,7 @@ export async function handleAPI(request, env, ctx) {
       // 合并更新
       state.sites[siteIndex] = { ...oldSite, ...updates };
       
-      // 如果 URL、监控类型、DNS记录类型或期望值改变了，重置检测状态
-      const needReset = urlChanged || monitorTypeChanged || dnsRecordTypeChanged || dnsExpectedValueChanged;
+      // 如果关键字段发生变化，重置检测状态和历史记录
       if (needReset) {
         state.sites[siteIndex].status = 'unknown';
         state.sites[siteIndex].statusRaw = null;
@@ -488,13 +510,12 @@ export async function handleAPI(request, env, ctx) {
         if (state.history && state.history[siteId]) {
           state.history[siteId] = [];
         }
-        const changeType = urlChanged ? 'URL' : monitorTypeChanged ? '监控类型' : dnsRecordTypeChanged ? 'DNS记录类型' : 'DNS期望值';
-        console.log(`🔄 站点 ${oldSite.name} ${changeType}已变更，重置检测状态`);
+        console.log(`🔄 站点 ${oldSite.name} 配置已变更 [${changedFields.join(', ')}]，重置检测状态`);
       }
       
       await updateState(env, state);
 
-      return jsonResponse({ success: true, site: state.sites[siteIndex], urlChanged });
+      return jsonResponse({ success: true, site: state.sites[siteIndex], configChanged: needReset, changedFields });
     } catch (error) {
       return errorResponse('更新站点失败: ' + error.message, 500);
     }
