@@ -1,5 +1,7 @@
 // API 处理模块 - 从 Pages Functions 迁移
 import { handleMonitor, sendNotifications } from './monitor';
+import { handleLogin as handleLoginCtrl, changePassword as changePasswordCtrl, verifyToken as verifyTokenFromCtrl } from './api/controllers/auth.js';
+import * as sitesController from './api/controllers/sites.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -49,38 +51,7 @@ function isValidHost(string) {
   return isValidDomain(host);
 }
 
-// 使用 SHA-256 哈希密码
-async function hashPassword(password) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// 验证密码（比对哈希值）
-async function verifyPassword(password, storedHash) {
-  const hashedInput = await hashPassword(password);
-  return hashedInput === storedHash;
-}
-
-function generateToken(payload) {
-  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const data = btoa(JSON.stringify(payload));
-  return `${header}.${data}`;
-}
-
-function verifyToken(token) {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 2) return null;
-    const payload = JSON.parse(atob(parts[1]));
-    if (payload.exp && payload.exp < Date.now()) return null;
-    return payload;
-  } catch (_) {
-    return null;
-  }
-}
+/* Auth helpers moved to `src/api/controllers/auth.js` */
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -97,36 +68,7 @@ function errorResponse(message, status = 400) {
 }
 
 async function handleLogin(request, env) {
-  try {
-    const { password } = await request.json();
-    
-    if (!password) {
-      return errorResponse('密码不能为空', 400);
-    }
-
-    const kvAdmin = await env.MONITOR_DATA.get('admin_password');
-    // 默认密码 admin123456 的 SHA-256 哈希
-    const defaultPasswordHash = 'ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78';
-    const adminPassword = kvAdmin || defaultPasswordHash;
-
-    if (!await verifyPassword(password, adminPassword)) {
-      return errorResponse('密码错误', 401);
-    }
-
-    const token = generateToken({
-      admin: true,
-      exp: Date.now() + 24 * 60 * 60 * 1000
-    });
-
-    return jsonResponse({
-      success: true,
-      token,
-      message: '登录成功'
-    });
-
-  } catch (error) {
-    return errorResponse('登录失败: ' + error.message, 500);
-  }
+  return await handleLoginCtrl(request, env);
 }
 
 function requireAuth(request) {
@@ -137,7 +79,7 @@ function requireAuth(request) {
   }
 
   const token = authHeader.substring(7);
-  const payload = verifyToken(token);
+  const payload = verifyTokenFromCtrl(token);
 
   if (!payload) {
     return { authorized: false, error: '认证信息无效或已过期' };
@@ -376,12 +318,7 @@ export async function handleAPI(request, env, ctx) {
 
   // 获取所有站点（需要认证）
   if (path === '/api/sites' && request.method === 'GET') {
-    try {
-      const state = await getState(env);
-      return jsonResponse(state.sites || []);
-    } catch (error) {
-      return errorResponse('获取站点失败: ' + error.message, 500);
-    }
+    return await sitesController.getSites(request, env);
   }
 
   // 手动触发检测（需要认证）
@@ -411,217 +348,25 @@ export async function handleAPI(request, env, ctx) {
 
   // 添加站点
   if (path === '/api/sites' && request.method === 'POST') {
-    try {
-      const site = await request.json();
-      const isDns = site.monitorType === 'dns';
-      const isTcp = site.monitorType === 'tcp';
-      
-      // 根据监控类型验证输入
-      if (isDns) {
-        if (!site.url || !isValidDomain(site.url)) {
-          return errorResponse('无效的域名', 400);
-        }
-      } else if (isTcp) {
-        if (!site.tcpHost || !isValidHost(site.tcpHost)) {
-          return errorResponse('无效的主机名', 400);
-        }
-        if (!site.tcpPort || isNaN(parseInt(site.tcpPort)) || parseInt(site.tcpPort) < 1 || parseInt(site.tcpPort) > 65535) {
-          return errorResponse('无效的端口号（必须为 1-65535）', 400);
-        }
-      } else {
-        if (!site.url || !isValidUrl(site.url)) {
-          return errorResponse('无效的 URL', 400);
-        }
-      }
-      
-      const state = await getState(env);
-      const newSite = {
-        id: generateId(),
-        name: site.name || '未命名站点',
-        url: isTcp ? '' : site.url,
-        status: 'unknown',
-        responseTime: 0,
-        lastCheck: 0,
-        groupId: site.groupId || 'default',
-        // 监控类型
-        monitorType: site.monitorType || 'http',
-        // HTTP 相关
-        method: site.method || 'GET',
-        headers: site.headers || {},
-        expectedCodes: site.expectedCodes || [200],
-        responseKeyword: site.responseKeyword || '',
-        responseForbiddenKeyword: site.responseForbiddenKeyword || '',
-        // DNS 相关
-        dnsRecordType: site.dnsRecordType || 'A',
-        dnsExpectedValue: site.dnsExpectedValue || '',
-        // TCP 相关
-        tcpHost: site.tcpHost || '',
-        tcpPort: site.tcpPort ? parseInt(site.tcpPort, 10) : 0,
-        // 其他
-        showUrl: site.showUrl || false,
-        sortOrder: site.sortOrder || state.sites.length,
-        createdAt: Date.now()
-      };
-
-      state.sites.push(newSite);
-      state.history[newSite.id] = [];
-      await updateState(env, state);
-
-      return jsonResponse({ success: true, site: newSite });
-    } catch (error) {
-      return errorResponse('添加站点失败: ' + error.message, 500);
-    }
+    return await sitesController.addSite(request, env);
   }
 
   // 更新站点
   if (path.startsWith('/api/sites/') && request.method === 'PUT') {
-    try {
-      const siteId = path.split('/')[3];
-      const updates = await request.json();
-      
-      const state = await getState(env);
-      const siteIndex = state.sites.findIndex(s => s.id === siteId);
-      
-      if (siteIndex === -1) {
-        return errorResponse('站点不存在', 404);
-      }
-
-      const oldSite = state.sites[siteIndex];
-      const newMonitorType = updates.monitorType || oldSite.monitorType || 'http';
-      
-      // 定义会影响检测结果的关键字段（修改后需要重置状态和历史记录）
-      // 添加新检测类型时，只需在此列表中添加相关字段即可
-      const criticalFields = [
-        'url',                      // 监控目标地址
-        'monitorType',              // 监控类型 (http/dns/tcp/...)
-        'method',                   // HTTP 请求方法
-        'expectedCodes',            // HTTP 期望状态码
-        'responseKeyword',          // HTTP 期望关键词
-        'responseForbiddenKeyword', // HTTP 禁止关键词
-        'dnsRecordType',            // DNS 记录类型
-        'dnsExpectedValue',         // DNS 期望值
-        'tcpHost',                  // TCP 主机名
-        'tcpPort',                  // TCP 目标端口
-        // 未来添加新检测类型的字段，只需在这里添加即可
-        // 例如: 'icmpTimeout', 'sslExpectedIssuer' 等
-      ];
-      
-      // 检查是否有关键字段发生变化
-      const changedFields = criticalFields.filter(field => {
-        if (updates[field] === undefined) return false;
-        // 对于数组类型（如 expectedCodes），需要深度比较
-        if (Array.isArray(updates[field]) && Array.isArray(oldSite[field])) {
-          return JSON.stringify(updates[field]) !== JSON.stringify(oldSite[field]);
-        }
-        return updates[field] !== oldSite[field];
-      });
-      
-      const needReset = changedFields.length > 0;
-      
-      // 如果提供了新 URL/主机，验证格式
-      if (newMonitorType === 'tcp') {
-        if (updates.tcpHost && !isValidHost(updates.tcpHost)) {
-          return errorResponse('无效的主机名', 400);
-        }
-        if (updates.tcpPort !== undefined) {
-          const port = parseInt(updates.tcpPort, 10);
-          if (isNaN(port) || port < 1 || port > 65535) {
-            return errorResponse('无效的端口号（必须为 1-65535）', 400);
-          }
-          updates.tcpPort = port;
-        }
-      } else if (updates.url) {
-        if (newMonitorType === 'dns') {
-          if (!isValidDomain(updates.url)) {
-            return errorResponse('无效的域名', 400);
-          }
-        } else {
-          if (!isValidUrl(updates.url)) {
-            return errorResponse('无效的 URL', 400);
-          }
-        }
-      }
-      
-      // 合并更新
-      state.sites[siteIndex] = { ...oldSite, ...updates };
-      
-      // 如果关键字段发生变化，重置检测状态和历史记录
-      if (needReset) {
-        state.sites[siteIndex].status = 'unknown';
-        state.sites[siteIndex].statusRaw = null;
-        state.sites[siteIndex].statusPending = null;
-        state.sites[siteIndex].statusPendingStartTime = null;
-        state.sites[siteIndex].lastCheckTime = null;
-        state.sites[siteIndex].responseTime = null;
-        state.sites[siteIndex].message = null;
-        // 清除 SSL 证书信息
-        state.sites[siteIndex].sslCert = null;
-        state.sites[siteIndex].sslCertLastCheck = null;
-        // 清除历史记录
-        if (state.history && state.history[siteId]) {
-          state.history[siteId] = [];
-        }
-        console.log(`🔄 站点 ${oldSite.name} 配置已变更 [${changedFields.join(', ')}]，重置检测状态`);
-      }
-      
-      await updateState(env, state);
-
-      return jsonResponse({ success: true, site: state.sites[siteIndex], configChanged: needReset, changedFields });
-    } catch (error) {
-      return errorResponse('更新站点失败: ' + error.message, 500);
-    }
+    const siteId = path.split('/')[3];
+    return await sitesController.updateSite(request, env, siteId);
   }
 
   // 删除站点
   if (path.startsWith('/api/sites/') && request.method === 'DELETE') {
-    try {
-      const siteId = path.split('/')[3];
-      const state = await getState(env);
-      
-      state.sites = state.sites.filter(s => s.id !== siteId);
-      
-      // 删除站点相关的所有数据
-      delete state.history[siteId];
-      delete state.incidents[siteId];
-      delete state.certificateAlerts?.[siteId];
-      
-      // 从全局事件索引中删除该站点的所有事件
-      if (Array.isArray(state.incidentIndex)) {
-        state.incidentIndex = state.incidentIndex.filter(inc => inc?.siteId !== siteId);
-      }
-      
-      // 清除通知冷却记录
-      if (state.lastNotifications) {
-        Object.keys(state.lastNotifications).forEach(key => {
-          if (key.startsWith(`${siteId}:`)) {
-            delete state.lastNotifications[key];
-          }
-        });
-      }
-      
-      await updateState(env, state);
-
-      return jsonResponse({ success: true });
-    } catch (error) {
-      return errorResponse('删除站点失败: ' + error.message, 500);
-    }
+    const siteId = path.split('/')[3];
+    return await sitesController.deleteSite(request, env, siteId);
   }
 
   // 获取历史数据
   if (path.startsWith('/api/history/') && request.method === 'GET') {
-    try {
-      const siteId = path.split('/')[3];
-      const state = await getState(env);
-      const history = state.history[siteId] || [];
-
-      return jsonResponse({
-        siteId,
-        history,
-        stats: calculateStats(history)
-      });
-    } catch (error) {
-      return errorResponse('获取历史失败: ' + error.message, 500);
-    }
+    const siteId = path.split('/')[3];
+    return await sitesController.getHistory(request, env, siteId);
   }
 
   // 测试通知
@@ -693,31 +438,7 @@ export async function handleAPI(request, env, ctx) {
 
   // 站点排序
   if (path === '/api/sites/reorder' && request.method === 'POST') {
-    try {
-      const { siteIds } = await request.json();
-      
-      if (!Array.isArray(siteIds) || siteIds.length === 0) {
-        return errorResponse('无效的站点ID列表', 400);
-      }
-      
-      const state = await getState(env);
-      
-      siteIds.forEach((id, index) => {
-        const site = state.sites.find(s => s.id === id);
-        if (site) {
-          site.sortOrder = index;
-        }
-      });
-      
-      await updateState(env, state);
-      
-      return jsonResponse({
-        success: true,
-        message: '站点排序已更新'
-      });
-    } catch (error) {
-      return errorResponse('更新排序失败: ' + error.message, 500);
-    }
+    return await sitesController.reorderSites(request, env);
   }
 
   // 手动触发监控
@@ -732,29 +453,7 @@ export async function handleAPI(request, env, ctx) {
 
   // 修改密码
   if (path === '/api/password' && request.method === 'PUT') {
-    try {
-      const { oldPassword, newPassword } = await request.json();
-      
-      if (!oldPassword || !newPassword) {
-        return errorResponse('旧密码和新密码不能为空', 400);
-      }
-
-      const kvAdmin = await env.MONITOR_DATA.get('admin_password');
-      // 默认密码 admin123456 的 SHA-256 哈希
-      const defaultPasswordHash = 'ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78';
-      const adminPassword = kvAdmin || defaultPasswordHash;
-
-      if (!await verifyPassword(oldPassword, adminPassword)) {
-        return errorResponse('旧密码错误', 401);
-      }
-
-      // 新密码使用哈希存储
-      const hashedNewPassword = await hashPassword(newPassword);
-      await env.MONITOR_DATA.put('admin_password', hashedNewPassword);
-      return jsonResponse({ success: true, message: '密码修改成功' });
-    } catch (error) {
-      return errorResponse('修改密码失败: ' + error.message, 500);
-    }
+    return await changePasswordCtrl(request, env);
   }
 
   // 修改后台路径

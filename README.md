@@ -29,12 +29,13 @@
 
 | 更改 | 说明 |
 |------|------|
+| **架构优化与重构** | 为提升长期可维护性，项目正在逐步重构为模块化架构 |
 | **新增TCP 监控类型** | 你现在可以填写主机名添加 TCP 监控站点了 |
 | **保持UI 风格统一** | 为 HTTP(S) 设置添加绿色卡片背景，与 DNS/TCP 风格统一 |
 | **修复部分UI 问题** | 修复了点击“刷新”按钮（或执行排序、删除等操作）时，页面会跳动的问题 |
 | **修复弹窗闪烁问题** | 修复了在页面中点击“添加站点 / 添加分类 / 编辑站点”会闪烁的问题 |
 | **修复站点管理加载缓慢问题** | 优化了部分动画和修复了大部分区域会闪烁的问题 |
-| **实现分组与站点的拖拽排序功能** | 你现在可以通过拖拽来调整分组和站点的顺序！超级丝滑！ |
+| **实现分组与站点的拖拽排序功能** | 你现在可以通过拖拽来调整分组和站点的顺序，超级丝滑！ |
 
 </details>
 
@@ -62,6 +63,26 @@
 </details>
 
 ---
+
+## 🏗️ 模块化重构与迁移指南
+
+为提升长期可维护性，项目正在逐步重构为模块化架构（监控器、通知器、存储层、API 控制器等）。目前已完成的改动：
+
+- 抽取监控协议实现至 src/monitors/（支持 HTTP/DNS/TCP，便于扩展 MySQL/Redis/SSH 等）
+- 抽取通知渠道至 src/notifications/，分发器模式初步成型，便于后续集成短信/Webhook/Telegram
+- 增加 src/core/storage.js，初步实现存储层抽象
+- API 路由与控制器分离，部分接口已迁移，提升可维护性
+- 支持 mock 调试模式，便于本地开发与单元测试
+
+迁移（分阶段）：
+1. 抽取监控实现（已完成）→ 2. 抽取通知实现（已完成）→ 3. 拆分 API 为 `router + controllers`（进行中）→ 4. 重构存储层并编写迁移脚本（计划）→ 5. 添加单元测试、CI 校验与文档完善（计划）。
+
+本次重构的好处：
+- 新增一种监控（如 MySQL、SSH）只需新增 `src/monitors/mysql.js` 并在工厂中注册；无需修改主调度逻辑。
+- 新增通知渠道只需在 `src/notifications/` 下实现 `send()` 并在分发器配置里注册。
+- 存储分层后便于将历史与配置分离，避免单一大 JSON 导致的 KV 性能问题。
+
+> 💡 本地调试提示：在站点配置中添加 `mock` 字段（例如 `{ mock: { forceStatus: 'offline', message: '模拟故障' } }`）以便测试告警与防抖流程。
 
 
 ## 📋 计划更新
@@ -335,22 +356,41 @@ npm run dev
 | `npm run deploy` | 手动部署到 Cloudflare |
 | `npm run tail` | 查看线上日志 |
 
-### 项目结构
+### 项目结构（已模块化）
 
 ```
 dundun-watch/
-├── src/                    # Worker 源代码
-│   ├── index.js           # 主入口
-│   ├── api.js             # API 接口
-│   ├── monitor.js         # 监控逻辑
-│   └── utils.js           # 工具函数
-├── frontend/               # 前端项目 (React + Vite)
-│   ├── src/               # 前端源码
-│   └── dist/              # 构建产物
-├── .github/workflows/      # GitHub Actions
-│   └── deploy.yml         # 自动部署工作流
-├── wrangler.toml          # Cloudflare Worker 配置
-└── package.json           # 项目配置
+├── src/                          # Worker 源代码（模块化）
+│   ├── index.js                  # 主入口
+│   ├── core/
+│   │   ├── storage.js            # 存储抽象（KV / D1 适配）
+│   │   └── utils.js              # 通用工具函数
+│   ├── monitors/                 # 各协议监控实现与工厂
+│   │   ├── index.js              # 监控工厂
+│   │   ├── http.js
+│   │   ├── dns.js
+│   │   ├── tcp.js
+│   │   └── mock.js               # 本地调试/单元测试 mock 支持
+│   ├── notifications/            # 通知渠道实现与分发器
+│   │   ├── index.js
+│   │   ├── wecom.js
+│   │   └── email.js
+│   └── api/                      # 路由 + 控制器
+│       ├── router.js
+│       └── controllers/
+│           ├── auth.js
+│           └── sites.js
+├── frontend/                      # 前端项目 (React + Vite)
+│   ├── src/                       # 前端源码
+│   ├── public/
+│   └── dist/                      # 构建产物
+├── docs/                          # 截图与文档
+├── tests/                         # 单元测试（含 monitors 的 mock 测试）
+├── .github/workflows/
+│   └── deploy.yml                 # 自动部署工作流
+├── wrangler.toml                  # Cloudflare Worker 配置
+├── package.json
+└── README.md
 ```
 
 ---
