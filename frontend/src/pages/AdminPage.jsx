@@ -20,8 +20,6 @@ import {
   BellRing,
   Mail,
   Link,
-  Eye,
-  User,
   KeyRound,
   Settings2,
   Route
@@ -86,9 +84,12 @@ export default function AdminPage() {
     });
   };
 
-  const loadSites = async () => {
+  // 修复点 1: 增加 showLoading 参数，默认为 true
+  const loadSites = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       const data = await api.getSites();
       setSites(data);
     } catch (error) {
@@ -98,7 +99,9 @@ export default function AdminPage() {
         handleLogout();
       }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -126,7 +129,6 @@ export default function AdminPage() {
       if (token) {
         return true;
       }
-      // 未登录时跳转到首页，由路由自动处理跳转到登录页
       navigate('/', { replace: true });
       return false;
     };
@@ -166,7 +168,7 @@ export default function AdminPage() {
       loadAdminPath();
 
       const timer = setTimeout(() => {
-        loadSites();
+        loadSites(true); // 首次加载显示 loading
       }, 50);
 
       const statsInterval = setInterval(loadStats, 30000);
@@ -183,7 +185,6 @@ export default function AdminPage() {
 
   const handleLogout = () => {
     clearToken();
-    // 退出后跳转到首页
     navigate('/');
   };
 
@@ -228,7 +229,7 @@ export default function AdminPage() {
       setShowAddModal(false);
       
       setTimeout(() => {
-        loadSites();
+        loadSites(false); // 修复点 2: 添加后静默更新
         loadStats();
       }, 2000);
     } catch (error) {
@@ -240,7 +241,7 @@ export default function AdminPage() {
     try {
       await api.updateSite(siteId, siteData);
       setEditingSite(null);
-      loadSites();
+      loadSites(false); // 修复点 3: 更新后静默更新
     } catch (error) {
       throw error;
     }
@@ -252,7 +253,7 @@ export default function AdminPage() {
       async () => {
         try {
           await api.deleteSite(siteId);
-          loadSites();
+          loadSites(false); // 修复点 4: 删除后静默更新
         } catch (error) {
           showError('删除失败: ' + error.message);
         }
@@ -264,7 +265,7 @@ export default function AdminPage() {
   const handleReorderSites = async (siteIds) => {
     try {
       await api.reorderSites(siteIds);
-      loadSites();
+      loadSites(false); // 修复点 5: 排序后静默更新（最关键的一点）
     } catch (error) {
       showError('排序失败: ' + error.message);
     }
@@ -281,7 +282,7 @@ export default function AdminPage() {
       await api.triggerCheck();
       
       setTimeout(() => {
-        loadSites();
+        loadSites(false); // 修复点 6: 手动检查后静默更新
         loadStats();
       }, 2000);
       
@@ -308,19 +309,16 @@ export default function AdminPage() {
   const handleDeleteGroup = async (groupId) => {
     await api.deleteGroup(groupId);
     loadGroups();
-    loadSites();
+    loadSites(false); // 修复点 7: 删除分组后静默更新
   };
 
   return (
     <div className="min-h-screen relative">
-      {/* 星空背景 */}
       <StarryBackground />
       
-      {/* 头部 */}
       <header className="sticky top-0 z-50 backdrop-blur-lg bg-white/70 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-6">
           <div className="flex items-center justify-between gap-2">
-            {/* Logo */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -339,7 +337,6 @@ export default function AdminPage() {
               </div>
             </motion.div>
 
-            {/* 操作按钮 */}
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               <a
                 href="/"
@@ -369,7 +366,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* 标签页导航 */}
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
             <nav className="flex space-x-4 sm:space-x-8 min-w-max" aria-label="Tabs">
@@ -443,11 +439,9 @@ export default function AdminPage() {
         </div>
       </header>
 
-      {/* 主内容 */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {activeTab === 'sites' && (
           <>
-        {/* 统计卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -512,7 +506,6 @@ export default function AdminPage() {
           </motion.div>
         </div>
 
-        {/* KV 写入统计 */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <motion.div
@@ -580,7 +573,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 分类管理 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -595,7 +587,6 @@ export default function AdminPage() {
           />
         </motion.div>
 
-        {/* 站点管理 */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -635,6 +626,11 @@ export default function AdminPage() {
           </>
         )}
 
+        {/* 为保持代码简洁，website/settings/notifications/account 标签页内容与之前一致，
+          这里不需要修改，但请确保在合并代码时保留它们。
+          上面的代码已经包含了完整的 AdminPage 结构。
+          为了完整性，这里保留了所有 activeTab 的判断逻辑。
+        */}
         {activeTab === 'website' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1217,7 +1213,6 @@ export default function AdminPage() {
                       await api.changePassword(passwordForm.oldPassword, passwordForm.newPassword);
                       showSuccess('密码修改成功，请重新登录');
                       setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
-                      // 清除 token，跳转到登录页
                       setTimeout(() => {
                         clearToken();
                         navigate('/admin');
@@ -1299,7 +1294,6 @@ export default function AdminPage() {
                       const result = await api.changeAdminPath(newAdminPath);
                       showSuccess(`后台路径已修改为 /${result.newPath}，即将跳转...`);
                       setAdminPath(result.newPath);
-                      // 跳转到新的后台路径
                       setTimeout(() => {
                         window.location.href = `/${result.newPath}`;
                       }, 1500);
@@ -1327,7 +1321,7 @@ export default function AdminPage() {
 
       </main>
 
-      {/* 添加站点弹窗 */}
+      {/* 弹窗组件 */}
       {showAddModal && (
         <AddSiteModal
           onClose={() => setShowAddModal(false)}
@@ -1336,7 +1330,6 @@ export default function AdminPage() {
         />
       )}
 
-      {/* 编辑站点弹窗 */}
       {editingSite && (
         <EditSiteModal
           site={editingSite}
@@ -1347,7 +1340,6 @@ export default function AdminPage() {
         />
       )}
 
-      {/* 统一弹窗 */}
       <Dialog
         isOpen={dialog.isOpen}
         onClose={closeDialog}
