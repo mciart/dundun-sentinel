@@ -320,7 +320,7 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-6">
           <div className="flex items-center justify-between gap-2">
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
+              initial={false}
               animate={{ opacity: 1, x: 0 }}
               className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1"
             >
@@ -444,7 +444,7 @@ export default function AdminPage() {
           <>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             className="glass-card p-6"
           >
@@ -464,9 +464,8 @@ export default function AdminPage() {
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
             className="glass-card p-6"
           >
             <div className="flex items-center justify-between">
@@ -484,12 +483,11 @@ export default function AdminPage() {
             </div>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="glass-card p-6"
-          >
+            <motion.div
+              initial={false}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-card p-6"
+            >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
@@ -509,9 +507,8 @@ export default function AdminPage() {
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
               className="glass-card p-6"
             >
               <div className="flex items-center justify-between">
@@ -530,9 +527,8 @@ export default function AdminPage() {
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
               className="glass-card p-6"
             >
               <div className="flex items-center justify-between">
@@ -551,9 +547,8 @@ export default function AdminPage() {
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={false}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
               className="glass-card p-6"
             >
               <div className="flex items-center justify-between">
@@ -574,9 +569,8 @@ export default function AdminPage() {
         )}
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
           className="mb-8"
         >
           <GroupManager
@@ -588,9 +582,8 @@ export default function AdminPage() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7 }}
           className="glass-card p-6"
         >
           <div className="flex items-center justify-between mb-6">
@@ -633,7 +626,7 @@ export default function AdminPage() {
         */}
         {activeTab === 'website' && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
@@ -743,7 +736,7 @@ export default function AdminPage() {
 
         {activeTab === 'settings' && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
@@ -913,7 +906,7 @@ export default function AdminPage() {
 
         {activeTab === 'notifications' && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
@@ -1132,7 +1125,7 @@ export default function AdminPage() {
         {/* 后台设置 */}
         {activeTab === 'account' && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={false}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
