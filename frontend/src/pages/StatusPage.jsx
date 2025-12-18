@@ -337,7 +337,7 @@ export default function StatusPage() {
           </p>
           <p className="text-xs text-slate-400 dark:text-slate-500">
             <a 
-              href="https://github.com/mciart/dundun-watch" 
+              href="https://github.com/hjp5211314/dundun-watch" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:text-primary-500 dark:hover:text-primary-400 transition-colors inline-flex items-center gap-1"
