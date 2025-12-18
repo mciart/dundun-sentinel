@@ -75,8 +75,20 @@ jobs:
         id: kv_setup
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          # 自动获取 Account ID
+          CLOUDFLARE_ACCOUNT_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts?per_page=1" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" | jq -r '.result[0].id')
+          
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ "$CLOUDFLARE_ACCOUNT_ID" = "null" ]; then
+            echo "无法获取 Account ID，请检查 API Token 权限"
+            exit 1
+          fi
+          
+          echo "获取到 Account ID: $CLOUDFLARE_ACCOUNT_ID"
+          echo "account_id=$CLOUDFLARE_ACCOUNT_ID" >> $GITHUB_OUTPUT
+          
           KV_ID="${{ secrets.KV_NAMESPACE_ID }}"
           
           # 如果没有提供 KV_NAMESPACE_ID，自动创建
@@ -121,12 +133,12 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ steps.kv_setup.outputs.account_id }}
 
       - name: Configure Admin Settings
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ steps.kv_setup.outputs.account_id }}
           KV_ID: ${{ steps.kv_setup.outputs.kv_id }}
           ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
@@ -182,8 +194,19 @@ jobs:
         id: kv_setup_preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          # 自动获取 Account ID
+          CLOUDFLARE_ACCOUNT_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts?per_page=1" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" | jq -r '.result[0].id')
+          
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ "$CLOUDFLARE_ACCOUNT_ID" = "null" ]; then
+            echo "无法获取 Account ID"
+            exit 1
+          fi
+          
+          echo "account_id=$CLOUDFLARE_ACCOUNT_ID" >> $GITHUB_OUTPUT
+          
           KV_ID="${{ secrets.KV_NAMESPACE_ID }}"
           
           if [ -z "$KV_ID" ] || [ "$KV_ID" = "" ]; then
@@ -210,5 +233,5 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: ${{ steps.kv_setup_preview.outputs.account_id }}
           command: deploy --dry-run
