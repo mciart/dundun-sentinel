@@ -124,18 +124,28 @@ export function resetDailyStats(state) {
  */
 export async function getState(env) {
   try {
-    const data = await getMonitorState(env);
+    let data = await getMonitorState(env);
     if (!data) {
       return initializeState();
     }
-    // 确保基本结构存在 (防御性编程)
-    if (!data.config) data.config = initializeState().config;
+
+    const defaults = initializeState();
+
+    if (!data.config) data.config = defaults.config;
     if (!data.sites) data.sites = [];
-    if (!data.stats) data.stats = initializeState().stats;
     if (!data.history) data.history = {};
     if (!data.incidents) data.incidents = {};
-    if (!data.incidentIndex) data.incidentIndex = [];
-    
+    if (!Array.isArray(data.incidentIndex)) data.incidentIndex = [];
+    if (!data.certificateAlerts) data.certificateAlerts = {};
+
+    if (!data.stats) {
+      data.stats = defaults.stats;
+    } else {
+      if (!data.stats.checks) data.stats.checks = defaults.stats.checks;
+      if (!data.stats.writes) data.stats.writes = defaults.stats.writes;
+      if (!data.stats.sites) data.stats.sites = defaults.stats.sites;
+    }
+
     return data;
   } catch (error) {
     console.error('获取状态失败:', error);

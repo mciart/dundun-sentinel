@@ -13,26 +13,6 @@ export async function handleMonitor(env, ctx, forceWrite = false) {
 
   const now = Date.now();
 
-  if (!state.incidents) state.incidents = {};
-  if (!Array.isArray(state.incidentIndex)) state.incidentIndex = [];
-  if (!state.certificateAlerts) state.certificateAlerts = {};
-  if (!state.history) state.history = {};
-  if (!state.sites) state.sites = [];
-
-  // 确保 stats 对象存在
-  if (!state.stats) {
-    state.stats = {
-      checks: { total: 0, today: 0 },
-      writes: { total: 0, today: 0, forced: 0, statusChange: 0 },
-      sites: { total: 0, online: 0, offline: 0 }
-    };
-  }
-  if (!state.stats.checks) state.stats.checks = { total: 0, today: 0 };
-  if (!state.stats.writes) state.stats.writes = { total: 0, today: 0, forced: 0, statusChange: 0 };
-  if (!state.stats.sites) state.stats.sites = { total: 0, online: 0, offline: 0 };
-
-  if (!state.config) state.config = {};
-
   if (state.config.statusChangeDebounceCount !== undefined && state.config.statusChangeDebounceMinutes === undefined) {
     state.config.statusChangeDebounceMinutes = state.config.statusChangeDebounceCount;
     delete state.config.statusChangeDebounceCount;
@@ -542,16 +522,6 @@ function handleCertAlert(state, site, previousCert, nextCert) {
   }
   return created;
 }
-
-
-
-
-
-
-
-
-// `sendNotifications` implementation moved to `src/notifications/index.js` and is re-exported by this module.
-
 function shouldThrottleAndMark(state, incident, cfg) {
   const cd = Number(cfg?.cooldown || 0);
   if (!cd || cd <= 0) return false;
