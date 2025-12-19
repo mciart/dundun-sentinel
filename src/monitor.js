@@ -1,5 +1,3 @@
-
-
 import { floorToMinute } from './utils.js';
 import { getMonitorForSite } from './monitors/index.js';
 import { shouldResetStats, resetDailyStats, getState, updateState } from './core/state.js';
