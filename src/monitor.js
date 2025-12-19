@@ -1,6 +1,7 @@
 
 
 import { formatTime, floorToMinute } from './utils';
+import { calculateStats } from './core/stats.js';
 import { getMonitorForSite } from './monitors/index.js';
 export { sendNotifications } from './notifications/index.js';
 
@@ -993,28 +994,7 @@ export async function getHistory(env, siteId, hours = 24) {
     .sort((a, b) => b.timestamp - a.timestamp);
 }
 
-export function calculateStats(history) {
-  if (!history || history.length === 0) {
-    return {
-      uptime: 100,
-      avgResponseTime: 0,
-      totalChecks: 0,
-      onlineChecks: 0,
-      offlineChecks: 0
-    };
-  }
-
-  const onlineChecks = history.filter(h => h.status === 'online').length;
-  const totalResponseTime = history.reduce((sum, h) => sum + h.responseTime, 0);
-
-  return {
-    uptime: ((onlineChecks / history.length) * 100).toFixed(2),
-    avgResponseTime: Math.round(totalResponseTime / history.length),
-    totalChecks: history.length,
-    onlineChecks,
-    offlineChecks: history.length - onlineChecks
-  };
-}
+// ...calculateStats 已迁移至 core/stats.js...
 
 export async function getState(env) {
   const state = await env.MONITOR_DATA.get('monitor_state', { type: 'json' });

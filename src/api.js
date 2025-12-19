@@ -1,5 +1,6 @@
 // API 处理模块 - 从 Pages Functions 迁移
 import { handleMonitor, sendNotifications } from './monitor';
+import { generateId, isValidUrl, isValidDomain, isValidHost } from './utils.js';
 import { handleLogin as handleLoginCtrl, changePassword as changePasswordCtrl, verifyToken as verifyTokenFromCtrl } from './api/controllers/auth.js';
 import * as sitesController from './api/controllers/sites.js';
 
@@ -9,47 +10,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-function generateId() {
-  return `site_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
 function floorToMinute(timestamp) {
   const minuteMs = 60_000;
   return Math.floor(timestamp / minuteMs) * minuteMs;
 }
 
-function isValidUrl(string) {
-  try {
-    const url = new URL(string);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch (_) {
-    return false;
-  }
-}
+// ...已移至 utils.js...
 
-// 验证域名格式（用于 DNS 监控）
-function isValidDomain(string) {
-  if (!string || typeof string !== 'string') return false;
-  // 移除可能的协议前缀和路径
-  const domain = string.replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
-  // 域名正则：支持子域名、顶级域名、下划线（如 _dmarc, _domainkey 等）
-  const domainRegex = /^(?:[a-zA-Z0-9_](?:[a-zA-Z0-9_-]{0,61}[a-zA-Z0-9_])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
-  return domainRegex.test(domain) && domain.length <= 253;
-}
+// ...已移至 utils.js...
 
-// 验证主机格式（域名或 IP 地址，用于 TCP 监控）
-function isValidHost(string) {
-  if (!string || typeof string !== 'string') return false;
-  const host = string.trim();
-  // IPv4 正则
-  const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-  // IPv6 简单正则（支持常见格式）
-  const ipv6Regex = /^(?:[a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$|^::(?:[a-fA-F0-9]{1,4}:){0,6}[a-fA-F0-9]{1,4}$|^(?:[a-fA-F0-9]{1,4}:){1,7}:$|^(?:[a-fA-F0-9]{1,4}:){1,6}:[a-fA-F0-9]{1,4}$/;
-  // 如果是 IP 地址，直接返回
-  if (ipv4Regex.test(host) || ipv6Regex.test(host)) return true;
-  // 否则验证域名
-  return isValidDomain(host);
-}
+// ...已移至 utils.js...
 
 /* Auth helpers moved to `src/api/controllers/auth.js` */
 
