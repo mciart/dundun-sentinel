@@ -1,6 +1,6 @@
 // API 处理模块 - 从 Pages Functions 迁移
 import { handleMonitor, sendNotifications } from './monitor';
-import { generateId, isValidUrl, isValidDomain, isValidHost } from './utils.js';
+import { generateId, isValidUrl, isValidDomain, isValidHost, floorToMinute } from './utils.js';
 import { handleLogin as handleLoginCtrl, changePassword as changePasswordCtrl, verifyToken as verifyTokenFromCtrl } from './api/controllers/auth.js';
 import * as sitesController from './api/controllers/sites.js';
 
@@ -9,11 +9,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
-
-function floorToMinute(timestamp) {
-  const minuteMs = 60_000;
-  return Math.floor(timestamp / minuteMs) * minuteMs;
-}
 
 // ...已移至 utils.js...
 
