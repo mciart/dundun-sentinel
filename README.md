@@ -1,6 +1,6 @@
 <div align="center">
 
-# 炖炖守望（增强版）
+# 炖炖守望（重构版）
 
 **dundun-watch**
 
