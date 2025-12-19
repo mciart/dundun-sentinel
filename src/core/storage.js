@@ -51,3 +51,17 @@ export function historyKey(siteId) {
 export function configKey() {
   return `config`;
 }
+
+export async function clearAllData(env) {
+  let cursor;
+  do {
+    const list = await env.MONITOR_DATA.list({ cursor });
+    const keys = Array.isArray(list.keys) ? list.keys : [];
+    for (const key of keys) {
+      if (key && key.name) {
+        await env.MONITOR_DATA.delete(key.name);
+      }
+    }
+    cursor = list.cursor;
+  } while (cursor);
+}

@@ -1,10 +1,11 @@
 // API 处理模块 - 从 Pages Functions 迁移
-import { errorResponse, corsHeaders } from './utils.js';
+import { errorResponse, corsHeaders, jsonResponse } from './utils.js';
 import { handleLogin, changePassword as changePasswordCtrl, requireAuth } from './api/controllers/auth.js';
 import * as sitesController from './api/controllers/sites.js';
 import * as configController from './api/controllers/config.js';
 import * as dashboardController from './api/controllers/dashboard.js';
 import * as monitorController from './api/controllers/monitor.js';
+import { clearAllData } from './core/storage.js';
 
 // API 路由处理
 export async function handleAPI(request, env, ctx) {
@@ -56,6 +57,14 @@ export async function handleAPI(request, env, ctx) {
   // 获取事件记录（公开接口）
   if (path === '/api/incidents' && request.method === 'GET') {
     return await dashboardController.getIncidents(request, env);
+  }
+
+  if (path === '/api/dev/reset-kv' && request.method === 'POST') {
+    if (env.ENVIRONMENT !== 'development') {
+      return errorResponse('当前环境不允许重置数据', 403);
+    }
+    await clearAllData(env);
+    return jsonResponse({ success: true });
   }
 
   // ==================== 需要认证的接口 ====================
