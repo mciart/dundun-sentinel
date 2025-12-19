@@ -27,6 +27,22 @@ export async function putSiteHistory(env, siteId, history) {
   await env.MONITOR_DATA.put(`history:${siteId}`, JSON.stringify(history));
 }
 
+export async function getAdminPath(env) {
+  return await env.MONITOR_DATA.get('admin_path');
+}
+
+export async function putAdminPath(env, path) {
+  await env.MONITOR_DATA.put('admin_path', path);
+}
+
+export async function getAdminPassword(env) {
+  return await env.MONITOR_DATA.get('admin_password');
+}
+
+export async function putAdminPassword(env, hash) {
+  await env.MONITOR_DATA.put('admin_password', hash);
+}
+
 // Simple helpers for per-site kv keys; may be replaced with proper DB later
 export function historyKey(siteId) {
   return `history:${siteId}`;

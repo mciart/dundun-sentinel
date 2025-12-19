@@ -1,24 +1,11 @@
 // Sites controllers: CRUD and related helpers
 import { calculateStats } from '../../core/stats.js';
-import { generateId, isValidUrl, isValidDomain, isValidHost } from '../../utils.js';
-
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  });
-}
-function errorResponse(message, status = 400) {
-  return jsonResponse({ error: message }, status);
-}
-
-
-
-
+import { generateId, isValidUrl, isValidDomain, isValidHost, jsonResponse, errorResponse } from '../../utils.js';
+import { getState, updateState } from '../../core/state.js';
 
 export async function getSites(request, env) {
   try {
-    const state = await env.MONITOR_DATA.get('monitor_state', 'json');
+    const state = await getState(env);
     return jsonResponse(state.sites || []);
   } catch (e) {
     return errorResponse('获取站点失败: ' + e.message, 500);
@@ -48,7 +35,7 @@ export async function addSite(request, env) {
       }
     }
 
-    const state = await env.MONITOR_DATA.get('monitor_state', 'json');
+    const state = await getState(env);
     const newSite = {
       id: generateId(),
       name: site.name || '未命名站点',
@@ -75,7 +62,7 @@ export async function addSite(request, env) {
     state.sites.push(newSite);
     state.history = state.history || {};
     state.history[newSite.id] = [];
-    await env.MONITOR_DATA.put('monitor_state', JSON.stringify(state));
+    await updateState(env, state);
 
     return jsonResponse({ success: true, site: newSite });
   } catch (error) {
@@ -86,7 +73,7 @@ export async function addSite(request, env) {
 export async function updateSite(request, env, siteId) {
   try {
     const updates = await request.json();
-    const state = await env.MONITOR_DATA.get('monitor_state', 'json');
+    const state = await getState(env);
     const siteIndex = state.sites.findIndex(s => s.id === siteId);
     if (siteIndex === -1) return errorResponse('站点不存在', 404);
 
@@ -147,7 +134,7 @@ export async function updateSite(request, env, siteId) {
       }
     }
 
-    await env.MONITOR_DATA.put('monitor_state', JSON.stringify(state));
+    await updateState(env, state);
 
     return jsonResponse({ success: true, site: state.sites[siteIndex], configChanged: needReset, changedFields });
   } catch (error) {
@@ -157,7 +144,7 @@ export async function updateSite(request, env, siteId) {
 
 export async function deleteSite(request, env, siteId) {
   try {
-    const state = await env.MONITOR_DATA.get('monitor_state', 'json');
+    const state = await getState(env);
     state.sites = state.sites.filter(s => s.id !== siteId);
     delete state.history?.[siteId];
     delete state.incidents?.[siteId];
@@ -170,7 +157,7 @@ export async function deleteSite(request, env, siteId) {
         if (key.startsWith(`${siteId}:`)) delete state.lastNotifications[key];
       });
     }
-    await env.MONITOR_DATA.put('monitor_state', JSON.stringify(state));
+    await updateState(env, state);
     return jsonResponse({ success: true });
   } catch (error) {
     return errorResponse('删除站点失败: ' + error.message, 500);
@@ -181,12 +168,12 @@ export async function reorderSites(request, env) {
   try {
     const { siteIds } = await request.json();
     if (!Array.isArray(siteIds) || siteIds.length === 0) return errorResponse('无效的站点ID列表', 400);
-    const state = await env.MONITOR_DATA.get('monitor_state', 'json');
+    const state = await getState(env);
     siteIds.forEach((id, index) => {
       const site = state.sites.find(s => s.id === id);
       if (site) site.sortOrder = index;
     });
-    await env.MONITOR_DATA.put('monitor_state', JSON.stringify(state));
+    await updateState(env, state);
     return jsonResponse({ success: true, message: '站点排序已更新' });
   } catch (error) {
     return errorResponse('更新排序失败: ' + error.message, 500);
@@ -195,7 +182,7 @@ export async function reorderSites(request, env) {
 
 export async function getHistory(request, env, siteId) {
   try {
-    const state = await env.MONITOR_DATA.get('monitor_state', 'json');
+    const state = await getState(env);
     const history = state.history[siteId] || [];
     return jsonResponse({ siteId, history, stats: calculateStats(history) });
   } catch (error) {

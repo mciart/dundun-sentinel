@@ -1,23 +1,16 @@
 
 
-import { formatTime, floorToMinute } from './utils';
+import { formatTime, floorToMinute, formatDuration } from './utils';
 import { calculateStats } from './core/stats.js';
 import { getMonitorForSite } from './monitors/index.js';
+import { initializeState, shouldResetStats, resetDailyStats, getState, updateState } from './core/state.js';
 export { sendNotifications } from './notifications/index.js';
 
 export async function handleMonitor(env, ctx, forceWrite = false) {
   const startTime = Date.now();
   console.log(forceWrite ? '=== 开始监控检测（强制写入）===' : '=== 开始监控检测 ===');
 
-  let state = await env.MONITOR_DATA.get('monitor_state', { type: 'json' });
-  
-  if (!state) {
-    console.log('首次运行，初始化状态...');
-    state = initializeState();
-    await env.MONITOR_DATA.put('monitor_state', JSON.stringify(state));
-    console.log('状态初始化完成');
-    return;
-  }
+  let state = await getState(env);
 
   const now = Date.now();
 
@@ -40,7 +33,6 @@ export async function handleMonitor(env, ctx, forceWrite = false) {
   if (!state.stats.sites) state.stats.sites = { total: 0, online: 0, offline: 0 };
 
   if (!state.config) state.config = {};
-  
 
   if (state.config.statusChangeDebounceCount !== undefined && state.config.statusChangeDebounceMinutes === undefined) {
     state.config.statusChangeDebounceMinutes = state.config.statusChangeDebounceCount;
@@ -115,9 +107,9 @@ export async function handleMonitor(env, ctx, forceWrite = false) {
           }
           
 
-          const now = new Date();
-          const currentYear = now.getFullYear();
-          const currentMonth = now.getMonth();
+          const nowDate = new Date();
+          const currentYear = nowDate.getFullYear();
+          const currentMonth = nowDate.getMonth();
           const monthlyDownCount = siteIncidents.filter(i => {
             if (i?.type !== 'down') return false;
             const incidentDate = new Date(i.createdAt);
@@ -265,7 +257,7 @@ export async function handleMonitor(env, ctx, forceWrite = false) {
 
     state.lastUpdate = now;
     state.monitorNextDueAt = floorToMinute(now + intervalMs);
-    await env.MONITOR_DATA.put('monitor_state', JSON.stringify(state));
+    await updateState(env, state);
   } else {
     const minutesRemain = Math.max(0, Math.ceil((state.monitorNextDueAt - now) / 60000));
     console.log(`⏭️ 跳过写入，距下次 ${minutesRemain} 分钟 (间隔 ${state.config.checkInterval} 分钟)`);
@@ -278,13 +270,12 @@ export async function handleMonitor(env, ctx, forceWrite = false) {
 export async function handleCertCheck(env, ctx) {
   console.log('开始执行SSL证书检测任务...');
 
-  const state = await env.MONITOR_DATA.get('monitor_state', { type: 'json' });
+  const state = await getState(env);
   if (!state || !state.sites || state.sites.length === 0) {
     console.log('暂无监控站点');
     return;
   }
   
-
   const certResults = await batchCheckSSLCertificates(state.sites);
 
   for (const site of state.sites) {
@@ -310,112 +301,13 @@ export async function handleCertCheck(env, ctx) {
   }
 
   state.lastUpdate = Date.now();
-  await env.MONITOR_DATA.put('monitor_state', JSON.stringify(state));
+  await updateState(env, state);
 
   const checkedCount = Object.keys(certResults).length;
   console.log(`SSL证书检测完成，检查了 ${checkedCount} 个HTTPS站点`);
 }
 
-function initializeState() {
-  return {
-    version: 1,
-    lastUpdate: Date.now(),
-    
-    config: {
-      historyHours: 24,              
-      retentionHours: 720,           
-      checkInterval: 10,             
-      statusChangeDebounceMinutes: 3, 
-      siteName: '炖炖守望',
-      siteSubtitle: '慢慢炖，网站不"糊锅"',
-      pageTitle: '网站监控',
-      
-      notifications: {
-        enabled: false,
-        events: ['down', 'recovered', 'cert_warning'],
-        channels: {
-          email: {
-            enabled: false,
-            to: '',
-            from: '' 
-          },
-          wecom: {
-            enabled: false,
-            webhook: ''
-          }
-        }
-      },
-      groups: [
-        {
-          id: 'default',
-          name: '默认分类',
-          order: 0,
-          createdAt: Date.now()
-        }
-      ]
-    },
-    
-    sites: [],
-    
-    history: {},
-    
-    incidents: {},
-    incidentIndex: [],
-    certificateAlerts: {},
-    
-    stats: {
-      writes: {
-        total: 0,
-        today: 0,
-        yesterday: 0,
-        forced: 0,
-        statusChange: 0,
-        lastResetDate: getBeijingDate()
-      },
-      checks: {
-        total: 0,
-        today: 0,
-        yesterday: 0
-      },
-      sites: {
-        total: 0,
-        online: 0,
-        offline: 0
-      }
-    }
-  };
-}
 
-
-function getBeijingDate() {
-  const now = new Date();
-  const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  return beijingTime.toISOString().split('T')[0];
-}
-
-function shouldResetStats(state) {
-  const today = getBeijingDate();
-  return state.stats.writes.lastResetDate !== today;
-}
-
-function resetDailyStats(state) {
-  const yesterday = state.stats.writes.lastResetDate;
-  const yesterdayWrites = state.stats.writes.today;
-  const yesterdayChecks = state.stats.checks.today;
-  
-  console.log(`📊 日期变更，重置统计: ${yesterday} 写入 ${yesterdayWrites} 次，检测 ${yesterdayChecks} 次`);
-  
-
-  state.stats.writes.yesterday = yesterdayWrites;
-  state.stats.checks.yesterday = yesterdayChecks;
-  
-
-  state.stats.writes.today = 0;
-  state.stats.writes.forced = 0;
-  state.stats.writes.statusChange = 0;
-  state.stats.checks.today = 0;
-  state.stats.writes.lastResetDate = getBeijingDate();
-}
 
 function checkWithDebounce(site, result, debounceMinutes) {
   const detectedStatus = result.status;
@@ -674,207 +566,11 @@ function handleCertAlert(state, site, previousCert, nextCert) {
 }
 
 
-function shouldNotifyEvent(cfg, type) {
-  if (!cfg || cfg.enabled !== true) return false;
-  if (Array.isArray(cfg.events)) return cfg.events.includes(type);
-  return true;
-}
-
-// `sendWeComNotification` moved to `src/notifications/wecom.js`.
 
 
-function formatDuration(ms) {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  
-  if (days > 0) {
-    return `${days}天${hours % 24}小时${minutes % 60}分钟`;
-  } else if (hours > 0) {
-    return `${hours}小时${minutes % 60}分钟`;
-  } else if (minutes > 0) {
-    return `${minutes}分钟${seconds % 60}秒`;
-  } else {
-    return `${seconds}秒`;
-  }
-}
 
-/* sendEmailNotification moved to src/notifications/email.js */
-async function _sendEmailNotification_moved() {
-  const emailCfg = cfg?.channels?.email || {};
-  if (!emailCfg.enabled || !emailCfg.to) return;
-  
 
-  const resendApiKey = emailCfg.resendApiKey;
-  if (!resendApiKey) {
-    console.warn('邮件通知已启用但未配置 Resend API Key');
-    return;
-  }
-  
-  const fromEmail = emailCfg.from && emailCfg.from.includes('@') ? emailCfg.from : 'onboarding@resend.dev';
-  const siteName = stateSiteName(cfg);
 
-  let prefix, headerBg, headerIcon, headerTitle, siteTitle, message, boxBg, boxBorder, labelColor;
-  const dataRows = [];
-  
-  const notifyTime = new Date(incident.createdAt).toLocaleString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-    timeZone: 'Asia/Shanghai'
-  });
-
-  if (incident.type === 'down') {
-    prefix = '异常了';
-    headerBg = '#fb7185';
-    headerIcon = '😵';
-    headerTitle = '哎呀，出问题了！';
-    siteTitle = `${site.name} 挂掉了`;
-    message = `看起来你的网站刚刚由于 <b>${incident.message || '未知错误'}</b> 倒下了。<br>希望能尽快修复它！`;
-    boxBg = '#fffbeb';
-    boxBorder = '#d97706';
-    labelColor = '#b45309';
-    dataRows.push(['⏰ 通知时间', notifyTime]);
-    if (incident.responseTime) {
-      dataRows.push(['🐢 响应时间', `${incident.responseTime}ms`]);
-    }
-    dataRows.push(['🔍 错误详情', incident.message || '服务异常']);
-  } else if (incident.type === 'recovered') {
-    prefix = '恢复了';
-    headerBg = '#4ade80';
-    headerIcon = '🎉';
-    headerTitle = '好耶，复活了！';
-    siteTitle = `${site.name} 恢复正常`;
-    message = '经过一番折腾，你的网站终于重新上线了！<br>一切看起来都很完美';
-    boxBg = '#f0fdf4';
-    boxBorder = '#16a34a';
-    labelColor = '#15803d';
-    if (incident.downDuration) {
-      dataRows.push(['⏱️ 异常时长', formatDuration(incident.downDuration)]);
-    }
-    if (incident.responseTime) {
-      dataRows.push(['⚡ 当前响应', `${incident.responseTime}ms`]);
-    }
-    if (typeof incident.monthlyDownCount === 'number') {
-      dataRows.push(['📉 本月异常', `${incident.monthlyDownCount}次`]);
-    }
-    dataRows.push(['⏰ 恢复时间', notifyTime]);
-  } else if (incident.type === 'cert_warning') {
-    prefix = '证书快到期';
-    headerBg = '#fbbf24';
-    headerIcon = '📜';
-    headerTitle = '证书快过期啦！';
-    siteTitle = site.name;
-    const daysLeft = incident.daysLeft ?? 0;
-    message = `你的 SSL 证书即将在 <b>${daysLeft}天</b> 后过期。<br>别忘了及时续费哦，不然会有大红锁！`;
-    boxBg = '#fff7ed';
-    boxBorder = '#ea580c';
-    labelColor = '#c2410c';
-    if (incident.certIssuer) {
-      dataRows.push(['🏢 颁发者', incident.certIssuer]);
-    }
-    if (incident.certValidTo) {
-      const validToDate = new Date(incident.certValidTo);
-      const dateStr = validToDate.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        timeZone: 'Asia/Shanghai'
-      });
-      dataRows.push(['📅 到期时间', dateStr]);
-    }
-    dataRows.push(['⏳ 剩余天数', `${daysLeft}天`]);
-    let nextAlert = '已是最后提醒';
-    if (daysLeft > 30) nextAlert = `${daysLeft - 30}天后`;
-    else if (daysLeft > 7) nextAlert = `${daysLeft - 7}天后`;
-    else if (daysLeft > 1) nextAlert = `${daysLeft - 1}天后`;
-    dataRows.push(['🔔 下次提醒', nextAlert]);
-  } else {
-    return;
-  }
-
-  const subject = `炖炖守望 - ${site.name} ${prefix}`;
-  
-
-  let dataRowsHtml = '';
-  dataRows.forEach((row, i) => {
-    const borderBottom = i < dataRows.length - 1 ? 'border-bottom: 1px dashed #e5e7eb;' : '';
-    dataRowsHtml += `
-      <tr>
-        <td style="padding: 10px 0; ${borderBottom} font-weight: bold; color: ${labelColor}; font-size: 14px; white-space: nowrap;">${row[0]}</td>
-        <td style="padding: 10px 0; ${borderBottom} font-family: Consolas, monospace; color: #000; font-weight: bold; font-size: 14px; text-align: right;">${row[1]}</td>
-      </tr>
-    `;
-  });
-
-  const html = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 20px; background: #f0f2f5; font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;">
-    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 500px; margin: 0 auto;">
-        <tr>
-            <td>
-                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background: #ffffff; border-radius: 20px; border: 3px solid #000; box-shadow: 8px 8px 0 #000; overflow: hidden;">
-                    <tr>
-                        <td style="background: ${headerBg}; padding: 25px; text-align: center; border-bottom: 3px solid #000;">
-                            <div style="font-size: 48px; line-height: 1.2;">${headerIcon}</div>
-                            <h1 style="font-size: 22px; margin: 12px 0 0 0; color: #000; font-weight: 900;">${headerTitle}</h1>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 30px 25px; text-align: center;">
-                            <h2 style="font-size: 20px; font-weight: bold; margin: 0 0 15px; color: #000;">${siteTitle}</h2>
-                            <p style="font-size: 15px; line-height: 1.6; margin: 0 0 25px; color: #4b5563;">${message}</p>
-                            <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background: ${boxBg}; border: 2px dashed ${boxBorder}; border-radius: 12px;">
-                                <tr>
-                                    <td style="padding: 15px 20px;">
-                                        <table cellpadding="0" cellspacing="0" border="0" width="100%">
-                                            ${dataRowsHtml}
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="background: #f9fafb; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-top: 3px solid #000;">
-                            <p style="margin: 4px 0;">此邮件由 <b>${siteName}</b> 自动发送</p>
-                            <p style="margin: 4px 0;">请勿直接回复本邮件</p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-</body>
-</html>`;
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${resendApiKey}`
-    },
-    body: JSON.stringify({
-      from: fromEmail,
-      to: emailCfg.to,
-      subject,
-      html
-    })
-  });
-  
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Resend 邮件发送失败:', response.status, errorText);
-  }
-}
-
-// `stateSiteName` moved to `src/notifications/email.js`.
 
 // `sendNotifications` implementation moved to `src/notifications/index.js` and is re-exported by this module.
 
@@ -962,24 +658,10 @@ async function batchCheckSSLCertificates(sites) {
   }
 }
 
-// Text decoding helper functions and HTTP monitor implementation were moved to `src/monitors/http.js` to keep encoding and content checks together.
-
-
-// DNS/TCP monitor implementations moved to `src/monitors/` (see `src/monitors/dns.js` and `src/monitors/tcp.js`).
-// They were extracted as part of the refactor to keep protocol implementation isolated and testable.
-
-
-
-
-// `dnsResolveStatus` moved to `src/monitors/dns.js`.
-
-// HTTP monitor implementation moved to `src/monitors/http.js`.
-// The function `checkSite` now lives in that module.
-
 
 
 export async function getHistory(env, siteId, hours = 24) {
-  const state = await env.MONITOR_DATA.get('monitor_state', { type: 'json' });
+  const state = await getState(env);
   
   if (!state || !state.history || !state.history[siteId]) {
     return [];
@@ -995,24 +677,3 @@ export async function getHistory(env, siteId, hours = 24) {
 }
 
 // ...calculateStats 已迁移至 core/stats.js...
-
-export async function getState(env) {
-  const state = await env.MONITOR_DATA.get('monitor_state', { type: 'json' });
-  if (!state) {
-    return initializeState();
-  }
-  return state;
-}
-
-export async function updateState(env, state) {
-  try {
-    if (!state.stats) state.stats = {};
-    if (!state.stats.writes) state.stats.writes = {};
-    state.stats.writes.total = (state.stats.writes.total || 0) + 1;
-    state.stats.writes.today = (state.stats.writes.today || 0) + 1;
-    state.stats.writes.admin = (state.stats.writes.admin || 0) + 1;
-  } catch {}
-
-  state.lastUpdate = Date.now();
-  await env.MONITOR_DATA.put('monitor_state', JSON.stringify(state));
-}

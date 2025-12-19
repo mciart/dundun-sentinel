@@ -12,18 +12,37 @@ export function calculateStats(history) {
       avgResponseTime: 0,
       totalChecks: 0,
       onlineChecks: 0,
-      offlineChecks: 0
+      offlineChecks: 0,
+      incidents: 0
     };
   }
 
+  const totalChecks = history.length;
   const onlineChecks = history.filter(h => h.status === 'online').length;
-  const totalResponseTime = history.reduce((sum, h) => sum + h.responseTime, 0);
+  const offlineChecks = totalChecks - onlineChecks;
+  const uptime = parseFloat(((onlineChecks / totalChecks) * 100).toFixed(2));
+
+  const responseTimes = history
+    .filter(h => h.responseTime != null && h.responseTime > 0)
+    .map(h => h.responseTime);
+  const avgResponseTime = responseTimes.length > 0
+    ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
+    : 0;
+
+  // 计算故障次数（状态从非 offline 变为 offline 的次数）
+  const incidents = history.filter((h, i, arr) => {
+    const currentStatus = h.status || h.s; // 兼容可能存在的旧数据格式
+    if (i === 0) return currentStatus === 'offline' || currentStatus === 'x';
+    const prevStatus = arr[i - 1].status || arr[i - 1].s;
+    return (prevStatus !== 'offline' && prevStatus !== 'x') && (currentStatus === 'offline' || currentStatus === 'x');
+  }).length;
 
   return {
-    uptime: ((onlineChecks / history.length) * 100).toFixed(2),
-    avgResponseTime: Math.round(totalResponseTime / history.length),
-    totalChecks: history.length,
+    uptime,
+    avgResponseTime,
+    totalChecks,
     onlineChecks,
-    offlineChecks: history.length - onlineChecks
+    offlineChecks,
+    incidents
   };
 }

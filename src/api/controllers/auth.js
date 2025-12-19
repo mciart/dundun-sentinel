@@ -1,15 +1,6 @@
 // Auth controllers: login and password change
-
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  });
-}
-
-function errorResponse(message, status = 400) {
-  return jsonResponse({ error: message }, status);
-}
+import { jsonResponse, errorResponse } from '../../utils.js';
+import { getAdminPassword, putAdminPassword } from '../../core/storage.js';
 
 async function hashPassword(password) {
   const encoder = new TextEncoder();
@@ -50,9 +41,17 @@ export async function handleLogin(request, env) {
       return errorResponse('密码不能为空', 400);
     }
 
-    const kvAdmin = await env.MONITOR_DATA.get('admin_password');
-    const defaultPasswordHash = 'ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78';
-    const adminPassword = kvAdmin || defaultPasswordHash;
+    const kvAdmin = await getAdminPassword(env);
+    // 默认密码为 'admin' 的 SHA-256 哈希值
+    const defaultPasswordHash = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
+    
+    let adminPassword = kvAdmin || defaultPasswordHash;
+
+    // 兼容旧版本的默认密码哈希 (ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78)
+    // 如果 KV 中存储的是旧的默认哈希值，我们也将其视为默认情况
+    if (adminPassword === 'ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78') {
+      adminPassword = defaultPasswordHash;
+    }
 
     if (!await verifyPassword(password, adminPassword)) {
       return errorResponse('密码错误', 401);
@@ -75,8 +74,9 @@ export async function changePassword(request, env) {
       return errorResponse('旧密码和新密码不能为空', 400);
     }
 
-    const kvAdmin = await env.MONITOR_DATA.get('admin_password');
-    const defaultPasswordHash = 'ac0e7d037817094e9e0b4441f9bae3209d67b02fa484917065f71b16109a1a78';
+    const kvAdmin = await getAdminPassword(env);
+    // 默认密码为 'admin' 的 SHA-256 哈希值
+    const defaultPasswordHash = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
     const adminPassword = kvAdmin || defaultPasswordHash;
 
     if (!await verifyPassword(oldPassword, adminPassword)) {
@@ -84,11 +84,28 @@ export async function changePassword(request, env) {
     }
 
     const hashedNewPassword = await hashPassword(newPassword);
-    await env.MONITOR_DATA.put('admin_password', hashedNewPassword);
+    await putAdminPassword(env, hashedNewPassword);
     return jsonResponse({ success: true, message: '密码修改成功' });
   } catch (error) {
     return errorResponse('修改密码失败: ' + error.message, 500);
   }
+}
+
+export function requireAuth(request) {
+  const authHeader = request.headers.get('Authorization');
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { authorized: false, error: '未提供认证信息' };
+  }
+
+  const token = authHeader.substring(7);
+  const payload = verifyToken(token);
+
+  if (!payload) {
+    return { authorized: false, error: '认证信息无效或已过期' };
+  }
+
+  return { authorized: true, payload };
 }
 
 export { verifyToken };
