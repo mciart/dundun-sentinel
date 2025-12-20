@@ -98,7 +98,7 @@ jobs:
             # 检查是否已存在同名 KV
             EXISTING=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces?per_page=100" \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: application/json" | jq -r '.result[] | select(.title=="dundun-watch-MONITOR_DATA") | .id')
+              -H "Content-Type: application/json" | jq -r '.result[] | select(.title=="dundun-sentinel-MONITOR_DATA") | .id')
             
             if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
               echo "找到已存在的 KV 命名空间: $EXISTING"
@@ -108,7 +108,7 @@ jobs:
               RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
                 -H "Content-Type: application/json" \
-                --data '{"title":"dundun-watch-MONITOR_DATA"}')
+                --data '{"title":"dundun-sentinel-MONITOR_DATA"}')
               
               KV_ID=$(echo $RESPONSE | jq -r '.result.id')
               
@@ -213,7 +213,7 @@ jobs:
             # 检查是否已存在同名 KV
             EXISTING=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces?per_page=100" \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: application/json" | jq -r '.result[] | select(.title=="dundun-watch-MONITOR_DATA") | .id')
+              -H "Content-Type: application/json" | jq -r '.result[] | select(.title=="dundun-sentinel-MONITOR_DATA") | .id')
             
             if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
               KV_ID="$EXISTING"

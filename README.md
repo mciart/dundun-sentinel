@@ -2,15 +2,15 @@
 
 # 炖炖哨兵
 
-**dundun-watch**
+**dundun-sentinel**
 
 轻量级网站监控系统 | 基于 Cloudflare Workers | 完全免费 | 一键部署
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange)](https://workers.cloudflare.com/)
-[![GitHub Stars](https://img.shields.io/github/stars/mciart/dundun-watch?style=social)](https://github.com/mciart/dundun-watch)
+[![GitHub Stars](https://img.shields.io/github/stars/mciart/dundun-sentinel?style=social)](https://github.com/mciart/dundun-sentinel)
 
-[演示站点](https://dundun-watch.mciart.workers.dev/) · [快速部署](#-快速部署) · [功能介绍](#-功能特性) · [本地开发](#-本地开发)
+[演示站点](https://dundun-sentinel.mciart.workers.dev/) · [快速部署](#-快速部署) · [功能介绍](#-功能特性) · [本地开发](#-本地开发)
 
 ---
 
@@ -171,7 +171,7 @@
 
 ### 第一步：Fork 项目
 
-1. 打开 [dundun-watch](https://github.com/mciart/dundun-watch)
+1. 打开 [dundun-sentinel](https://github.com/mciart/dundun-sentinel)
 2. 点击右上角 **Fork** 按钮
 3. 点击 **Create fork** 完成
 
@@ -229,7 +229,7 @@
 
 1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
 2. 进入 **Workers & Pages**
-3. 找到 **dundun-watch** 项目
+3. 找到 **dundun-sentinel** 项目
 4. 点击访问地址即可
 
 **默认后台地址：** `你的域名/admin`  
@@ -270,7 +270,7 @@ Cloudflare Workers 支持多种域名绑定方式：
 最简单的方式，适合绑定独立域名或子域名：
 
 1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
-2. 进入 **Workers & Pages** → 找到 **dundun-watch** 项目
+2. 进入 **Workers & Pages** → 找到 **dundun-sentinel** 项目
 3. 点击 **Settings** → **Domains & Routes**
 4. 点击 **Add** → **Custom Domain**
 5. 输入域名（如 `status.example.com`）
@@ -283,7 +283,7 @@ Cloudflare Workers 支持多种域名绑定方式：
 
 适合更灵活的路径匹配：
 
-1. 进入 **Workers & Pages** → **dundun-watch** 项目
+1. 进入 **Workers & Pages** → **dundun-sentinel** 项目
 2. 点击 **Settings** → **Domains & Routes**
 3. 点击 **Add** → **Route**
 4. 选择 Zone（你的域名）
@@ -296,7 +296,7 @@ Cloudflare Workers 支持多种域名绑定方式：
 
 无需配置，部署后自动获得：
 
-`dundun-watch.<你的账户>.workers.dev`
+`dundun-sentinel.<你的账户>.workers.dev`
 
 可在 **Settings** → **Domains & Routes** 中查看或禁用。
 
@@ -337,8 +337,8 @@ Cloudflare Workers 支持多种域名绑定方式：
 
 ```bash
 # 克隆项目
-git clone https://github.com/mciart/dundun-watch.git
-cd dundun-watch
+git clone https://github.com/mciart/dundun-sentinel.git
+cd dundun-sentinel
 
 # 安装依赖
 npm install
@@ -363,7 +363,7 @@ npm run dev
 ### 项目结构（已模块化）
 
 ```
-dundun-watch/
+dundun-sentinel/
 ├── src/                          # Worker 源代码（模块化）
 │   ├── index.js                  # 主入口
 │   ├── core/

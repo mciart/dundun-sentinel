@@ -1,5 +1,5 @@
 {
-  "name": "dundun-watch",
+  "name": "dundun-sentinel",
   "version": "2.0.0",
   "description": "炖炖守望 - 轻量级网站监控系统（Workers + Assets 版本）",
   "type": "module",
