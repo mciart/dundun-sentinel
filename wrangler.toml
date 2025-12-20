@@ -18,6 +18,7 @@ not_found_handling = "single-page-application"
 [[kv_namespaces]]
 binding = "MONITOR_DATA"
 id = "YOUR_KV_NAMESPACE_ID"
+preview_id = "YOUR_KV_NAMESPACE_PREEVIEW_ID"
 
 # 定时任务
 [triggers]
