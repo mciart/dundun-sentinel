@@ -95,6 +95,7 @@ export async function getAllSites(env) {
     dnsRecordType: row.dns_record_type,
     dnsExpectedValue: row.dns_expected_value,
     // TCP
+    tcpHost: row.tcp_host,
     tcpPort: row.tcp_port,
     // Push
     pushToken: row.push_token,
@@ -139,6 +140,7 @@ export async function getSite(env, siteId) {
     body: row.body,
     dnsRecordType: row.dns_record_type,
     dnsExpectedValue: row.dns_expected_value,
+    tcpHost: row.tcp_host,
     tcpPort: row.tcp_port,
     pushToken: row.push_token,
     pushInterval: row.push_interval,
@@ -162,10 +164,10 @@ export async function createSite(env, site) {
       group_id, sort_order, show_url, created_at,
       method, expected_status, timeout, headers, body,
       dns_record_type, dns_expected_value,
-      tcp_port,
+      tcp_host, tcp_port,
       push_token, push_interval, last_heartbeat, push_data, show_in_host_panel,
       ssl_cert, ssl_cert_last_check, last_message
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     site.id,
     site.name,
@@ -185,6 +187,7 @@ export async function createSite(env, site) {
     site.body || null,
     site.dnsRecordType || 'A',
     site.dnsExpectedValue || null,
+    site.tcpHost || null,
     site.tcpPort || null,
     site.pushToken || null,
     site.pushInterval || 60,
@@ -214,7 +217,7 @@ export async function updateSite(env, siteId, updates) {
       group_id = ?, sort_order = ?, show_url = ?,
       method = ?, expected_status = ?, timeout = ?, headers = ?, body = ?,
       dns_record_type = ?, dns_expected_value = ?,
-      tcp_port = ?,
+      tcp_host = ?, tcp_port = ?,
       push_token = ?, push_interval = ?, last_heartbeat = ?, push_data = ?, show_in_host_panel = ?,
       ssl_cert = ?, ssl_cert_last_check = ?, last_message = ?
     WHERE id = ?
@@ -235,6 +238,7 @@ export async function updateSite(env, siteId, updates) {
     merged.body,
     merged.dnsRecordType,
     merged.dnsExpectedValue,
+    merged.tcpHost,
     merged.tcpPort,
     merged.pushToken,
     merged.pushInterval,

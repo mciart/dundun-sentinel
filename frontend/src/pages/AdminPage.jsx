@@ -514,7 +514,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
-                    今日 KV 写入
+                    今日 D1 写入
                   </p>
                   <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                     {stats.writes.today}
@@ -534,7 +534,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
-                    昨日 KV 写入
+                    昨日 D1 写入
                   </p>
                   <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
                     {stats.writes.yesterday}
@@ -554,7 +554,7 @@ export default function AdminPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">
-                    累计 KV 写入
+                    累计 D1 写入
                   </p>
                   <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                     {stats.writes.total.toLocaleString()}
@@ -843,7 +843,7 @@ export default function AdminPage() {
                   placeholder="1 - 60"
                 />
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  范围 1-60 分钟。检测结果优先存内存，KV 写入仅用于持久化，设置较大值可节省 KV 配额。
+                  范围 1-60 分钟。检测结果实时写入 D1 数据库，D1 免费版每天 100,000 次写入配额。
                 </p>
               </div>
             </div>

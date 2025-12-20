@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS sites (
   dns_expected_value TEXT,
   
   -- TCP 监控配置
+  tcp_host TEXT,
   tcp_port INTEGER,
   
   -- Push 监控配置
