@@ -33,7 +33,9 @@ export async function getDashboardData(request, env) {
         monitorType: site.monitorType || 'http',
         lastHeartbeat: site.lastHeartbeat || 0,
         pushData: site.pushData || null,
-        showInHostPanel: site.showInHostPanel !== false  // 是否显示在主机监控面板
+        showInHostPanel: site.showInHostPanel !== false,  // 是否显示在主机监控面板
+        // DNS 监控相关字段
+        dnsRecordType: site.dnsRecordType || 'A'
       };
       
       // 如果是 Push 类型且内存缓存中有更新的数据，使用缓存数据
