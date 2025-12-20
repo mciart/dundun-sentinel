@@ -39,27 +39,40 @@ jobs:
         run: |
           if [ -z "$D1_DATABASE_ID" ]; then
             echo "❌ 错误：D1_DATABASE_ID 未配置"
-            echo ""
-            echo "请按以下步骤配置："
-            echo "1. 登录 Cloudflare Dashboard"
-            echo "2. 进入 Workers & Pages → D1 SQL Database"
-            echo "3. 创建数据库，名称为 dundun-sentinel-db"
-            echo "4. 复制数据库 ID"
-            echo "5. 在 GitHub 仓库 Settings → Secrets → Actions 添加 D1_DATABASE_ID"
             exit 1
           fi
           
           echo "✅ 配置 D1 Database ID: $D1_DATABASE_ID"
           sed -i "s/YOUR_D1_DATABASE_ID/$D1_DATABASE_ID/g" wrangler.toml
-          echo "📄 wrangler.toml 内容："
-          cat wrangler.toml
+
+      - name: Get Cloudflare Account ID
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "🔍 获取 Account ID..."
+          ACCOUNT_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts?per_page=1" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" | jq -r '.result[0].id')
+          
+          if [ -z "$ACCOUNT_ID" ] || [ "$ACCOUNT_ID" = "null" ]; then
+             echo "❌ 无法获取 Account ID，请检查 API Token 权限"
+             exit 1
+          fi
+          
+          echo "✅ 获取到 Account ID: $ACCOUNT_ID"
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> $GITHUB_ENV
+
+      - name: Check Wrangler Auth
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler whoami
 
       - name: Initialize D1 Schema
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           echo "📦 初始化 D1 数据库..."
-          npx wrangler d1 execute dundun-sentinel-db --file=./schema.sql --remote --yes || echo "⚠️ Schema 可能已存在，继续部署..."
+          npx wrangler d1 execute dundun-sentinel-db --file=./schema.sql --remote --yes || echo "⚠️ Schema 初始化失败（可能已存在），继续部署..."
 
       - name: Deploy to Cloudflare Workers
         env:
