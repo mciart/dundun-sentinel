@@ -5,12 +5,26 @@ import { handleAPI } from '../../src/api.js';
 
 // 创建兼容的环境对象
 function createEnv(context) {
-  // EdgeOne Node Functions 中，环境变量在 context.env 中
-  // KV 绑定也会在 context.env 中
+  // 1. 优先尝试 context.env 中的绑定 (标准方式)
+  let kv = context.env?.MONITOR_DATA;
+  
+  // 2. 如果没有，尝试 process.env (Node.js 兼容方式)
+  if (!kv && process.env && process.env.MONITOR_DATA) {
+    kv = process.env.MONITOR_DATA;
+  }
+  
+  // 3. 调试日志：部署后查看函数日志可确认 KV 是否获取成功
+  if (!kv) {
+    console.error('❌ CRITICAL ERROR: MONITOR_DATA is missing!');
+    console.log('Available context keys:', Object.keys(context.env || {}));
+    console.log('Available process keys:', Object.keys(process.env || {}).filter(k => !k.includes('PATH')).slice(0, 20));
+  } else {
+    console.log('✅ MONITOR_DATA linked successfully. Type:', typeof kv);
+  }
+
   return {
     ENVIRONMENT: process.env.NODE_ENV || 'production',
-    // 确保在控制台绑定了 KV，变量名为 MONITOR_DATA
-    MONITOR_DATA: context.env?.MONITOR_DATA || context.env?.KV,
+    MONITOR_DATA: kv,
     // 透传其他环境变量
     ...context.env
   };
