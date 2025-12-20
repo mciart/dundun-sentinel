@@ -55,17 +55,18 @@ jobs:
           cat wrangler.toml
 
       - name: Initialize D1 Schema
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: d1 execute dundun-sentinel-db --file=./schema.sql --remote
-        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "📦 初始化 D1 数据库..."
+          npx wrangler d1 execute dundun-sentinel-db --file=./schema.sql --remote --yes || echo "⚠️ Schema 可能已存在，继续部署..."
 
       - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          echo "🚀 开始部署..."
+          npx wrangler deploy
 
       - name: Deployment Success
         run: |
