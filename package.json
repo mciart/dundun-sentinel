@@ -4,7 +4,8 @@
   "description": "炖炖哨兵 - 轻量级网站监控系统（基于 EdgeOne）",
   "type": "module",
   "scripts": {
-    "dev": "cd frontend && npm run dev",
+    "dev": "npm run dev:backend & npm run dev:frontend",
+    "dev:backend": "node dev-server.js",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "npm run build:frontend && npm run copy:dist",
     "build:frontend": "cd frontend && npm install && npm run build",
@@ -16,7 +17,8 @@
     "monitoring",
     "uptime",
     "serverless",
-    "edge-functions"
+    "node-functions",
+    "tcp-monitor"
   ],
   "author": "人生大乱炖",
   "license": "MIT",

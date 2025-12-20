@@ -6,6 +6,13 @@
 - 已开通 EdgeOne 服务
 - 已有域名（需要在 EdgeOne 中接入）
 
+## ✨ 使用 Node Functions
+
+本项目使用 **EdgeOne Node Functions**（完整 Node.js 环境），支持：
+- ✅ **原生 TCP 端口监控**（使用 `net` 模块）
+- ✅ 完整的 NPM 生态
+- ✅ 更宽松的运行时限制
+
 ---
 
 ## 🚀 快速部署步骤
@@ -37,96 +44,70 @@
 
 ---
 
-### 4️⃣ 创建边缘函数
+### 4️⃣ 部署到 EdgeOne Pages
 
-#### 4.1 创建 API 函数
+#### 通过 GitHub 自动部署（推荐）
 
-1. 进入 **边缘函数** → **函数管理**
-2. 点击 **新建函数**
-3. 函数名称：`dundun_sentinel_api`
-4. 将 `edge-functions/api.js` 和 `src/` 目录的代码上传或粘贴
-5. 在 **KV 绑定** 中，添加绑定：
+1. 在 EdgeOne 控制台，进入 **边缘函数** → **Pages**
+2. 点击 **创建项目**
+3. 连接你的 GitHub 仓库（选择 `edgeone` 分支）
+4. EdgeOne 会自动识别 `node-functions` 目录
+5. 配置构建设置（通常自动检测）：
+   - 构建命令：`npm run build`
+   - 输出目录：`dist`
+6. 点击 **部署**
+
+#### 配置 KV 绑定
+
+1. 在项目设置中，找到 **环境变量**
+2. 添加 KV 绑定：
    - 变量名：`MONITOR_DATA`
-   - 选择刚创建的 KV 命名空间
-6. 保存函数
-
-#### 4.2 创建监控 Cron 函数
-
-1. 新建函数：`dundun_sentinel_cron_monitor`
-2. 上传 `edge-functions/cron-monitor.js` 代码
-3. 绑定相同的 KV 命名空间
-4. 保存函数
-
-#### 4.3 创建证书检测 Cron 函数
-
-1. 新建函数：`dundun_sentinel_cron_cert_check`
-2. 上传 `edge-functions/cron-cert-check.js` 代码
-3. 绑定相同的 KV 命名空间
-4. 保存函数
+   - 类型：KV 命名空间
+   - 选择之前创建的 KV 命名空间
+3. 保存并重新部署
 
 ---
 
-### 5️⃣ 配置函数触发规则
+### 5️⃣ 配置定时任务
 
-#### 5.1 配置 API 路由
+使用 EdgeOne 的定时触发器，通过 HTTP 请求触发监控：
 
-1. 进入 **边缘函数** → **触发规则**
-2. 点击 **新建规则**
+#### 配置监控定时任务
+
+1. 在 EdgeOne 控制台，进入 **边缘函数** → **触发器**
+2. 点击 **新建触发器**
 3. 配置：
-   - 规则名称：`api_route`
-   - 触发条件：URL 路径匹配 `/api/*`
-   - 执行函数：`dundun_sentinel_api`
-4. 保存规则
-
-#### 5.2 配置定时触发器
-
-1. 点击 **新建规则**
-2. 配置监控定时任务：
-   - 规则名称：`monitor_cron`
+   - 触发器名称：`monitor_cron`
    - 触发类型：**定时触发**
    - Cron 表达式：`*/15 * * * *`（每15分钟）
-   - 执行函数：`dundun_sentinel_cron_monitor`
-3. 保存
+   - 请求 URL：`https://你的域名/api/trigger-check`
+   - 请求方法：POST
+   - 请求头：添加管理员认证（在后台登录后获取 token）
+4. 保存
 
-4. 再新建一个规则，配置证书检测定时任务：
-   - 规则名称：`cert_check_cron`
-   - 触发类型：**定时触发**
-   - Cron 表达式：`0 4 * * *`（每天凌晨4点）
-   - 执行函数：`dundun_sentinel_cron_cert_check`
-5. 保存
+> 💡 **提示**：你也可以在后台手动点击"立即检查"来触发监控
 
 ---
 
-### 6️⃣ 部署前端静态资源
+### 6️⃣ 静态资源部署
 
-#### 方式一：使用 EdgeOne 静态托管
+使用 EdgeOne Pages 时，静态资源会自动部署：
+1. EdgeOne 自动构建前端（执行 `npm run build`）
+2. 将 `dist` 目录作为静态资源托管
+3. 将 `/api/*` 路由到 `node-functions`
 
-1. 本地构建前端：
-   ```bash
-   cd frontend
-   npm install
-   npm run build
-   ```
-
-2. 在 EdgeOne 控制台，进入 **站点加速** → **规则引擎**
-3. 配置静态资源回源规则，或使用 EdgeOne 的静态托管功能
-4. 上传 `frontend/dist` 目录的内容
-
-#### 方式二：使用腾讯云 COS
-
-1. 创建 COS 存储桶
-2. 上传 `frontend/dist` 目录内容
-3. 在 EdgeOne 配置回源到 COS
+无需手动配置！
 
 ---
 
-### 7️⃣ 配置环境变量（可选）
+### 7️⃣ 配置环境变量
 
-如果需要保护 Cron 接口：
+在 EdgeOne Pages 项目设置中添加环境变量：
 
-1. 在函数配置中添加环境变量
-2. 变量名：`CRON_SECRET`
-3. 值：自己生成的随机字符串
+| 变量名 | 说明 | 必需 |
+|--------|------|------|
+| `MONITOR_DATA` | KV 命名空间绑定 | ✅ 是 |
+| `NODE_ENV` | 运行环境 | ❌ 否 |
 
 ---
 
