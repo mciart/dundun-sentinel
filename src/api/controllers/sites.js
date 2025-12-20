@@ -1,13 +1,13 @@
-// Sites controllers: CRUD and related helpers
+// Sites controllers: CRUD and related helpers - D1 版本
 import { calculateStats } from '../../core/stats.js';
 import { generateId, isValidUrl, isValidDomain, isValidHost, jsonResponse, errorResponse } from '../../utils.js';
-import { getState, saveStateNow } from '../../core/state.js';
+import * as db from '../../core/storage.js';
 import { generatePushToken } from '../../monitors/push.js';
 
 export async function getSites(request, env) {
   try {
-    const state = await getState(env);
-    return jsonResponse(state.sites || []);
+    const sites = await db.getAllSites(env);
+    return jsonResponse(sites || []);
   } catch (e) {
     return errorResponse('获取站点失败: ' + e.message, 500);
   }
@@ -32,7 +32,6 @@ export async function addSite(request, env) {
         return errorResponse('无效的端口号（必须为 1-65535）', 400);
       }
     } else if (isPush) {
-      // Push 类型不需要 URL 验证，只需要名称
       if (!site.name || site.name.trim() === '') {
         return errorResponse('请输入主机名称', 400);
       }
@@ -42,7 +41,8 @@ export async function addSite(request, env) {
       }
     }
 
-    const state = await getState(env);
+    const existingSites = await db.getAllSites(env);
+    
     const newSite = {
       id: generateId(),
       name: site.name || '未命名站点',
@@ -54,28 +54,24 @@ export async function addSite(request, env) {
       monitorType: site.monitorType || 'http',
       method: site.method || 'GET',
       headers: site.headers || {},
-      expectedCodes: site.expectedCodes || [200],
-      responseKeyword: site.responseKeyword || '',
-      responseForbiddenKeyword: site.responseForbiddenKeyword || '',
+      expectedStatus: site.expectedCodes?.[0] || 200,
+      body: site.body || '',
       dnsRecordType: site.dnsRecordType || 'A',
       dnsExpectedValue: site.dnsExpectedValue || '',
       tcpHost: site.tcpHost || '',
       tcpPort: site.tcpPort ? parseInt(site.tcpPort, 10) : 0,
       showUrl: site.showUrl || false,
-      sortOrder: site.sortOrder || (state.sites ? state.sites.length : 0),
+      sortOrder: site.sortOrder || existingSites.length,
       createdAt: Date.now(),
       // Push 监控相关字段
       pushToken: isPush ? generatePushToken() : '',
-      pushTimeoutMinutes: isPush ? (site.pushTimeoutMinutes || 3) : 0,
-      showInHostPanel: isPush ? (site.showInHostPanel !== false) : false,  // 是否显示在主机监控面板
+      pushInterval: isPush ? (site.pushInterval || 60) : 60,
+      showInHostPanel: isPush ? (site.showInHostPanel !== false) : false,
       lastHeartbeat: 0,
       pushData: null
     };
 
-    state.sites.push(newSite);
-    state.history = state.history || {};
-    state.history[newSite.id] = [];
-    await saveStateNow(env, state);  // 添加站点立即保存
+    await db.createSite(env, newSite);
 
     return jsonResponse({ success: true, site: newSite });
   } catch (error) {
@@ -86,27 +82,15 @@ export async function addSite(request, env) {
 export async function updateSite(request, env, siteId) {
   try {
     const updates = await request.json();
-    const state = await getState(env);
-    const siteIndex = state.sites.findIndex(s => s.id === siteId);
-    if (siteIndex === -1) return errorResponse('站点不存在', 404);
+    const oldSite = await db.getSite(env, siteId);
+    
+    if (!oldSite) {
+      return errorResponse('站点不存在', 404);
+    }
 
-    const oldSite = state.sites[siteIndex];
     const newMonitorType = updates.monitorType || oldSite.monitorType || 'http';
 
-    const criticalFields = [
-      'url','monitorType','method','expectedCodes','responseKeyword','responseForbiddenKeyword','dnsRecordType','dnsExpectedValue','tcpHost','tcpPort','pushTimeoutMinutes'
-    ];
-
-    const changedFields = criticalFields.filter(field => {
-      if (updates[field] === undefined) return false;
-      if (Array.isArray(updates[field]) && Array.isArray(oldSite[field])) {
-        return JSON.stringify(updates[field]) !== JSON.stringify(oldSite[field]);
-      }
-      return updates[field] !== oldSite[field];
-    });
-
-    const needReset = changedFields.length > 0;
-
+    // 验证
     if (newMonitorType === 'tcp') {
       if (updates.tcpHost && !isValidHost(updates.tcpHost)) {
         return errorResponse('无效的主机名', 400);
@@ -119,17 +103,15 @@ export async function updateSite(request, env, siteId) {
         updates.tcpPort = port;
       }
     } else if (newMonitorType === 'push') {
-      // Push 类型验证超时时间
-      if (updates.pushTimeoutMinutes !== undefined) {
-        const timeout = parseInt(updates.pushTimeoutMinutes, 10);
-        if (isNaN(timeout) || timeout < 1 || timeout > 60) {
-          return errorResponse('超时时间必须在 1-60 分钟之间', 400);
+      if (updates.pushInterval !== undefined) {
+        const interval = parseInt(updates.pushInterval, 10);
+        if (isNaN(interval) || interval < 10 || interval > 3600) {
+          return errorResponse('心跳间隔必须在 10-3600 秒之间', 400);
         }
-        updates.pushTimeoutMinutes = timeout;
+        updates.pushInterval = interval;
       }
       // 如果从其他类型切换到 push，生成新的 token
       if (oldSite.monitorType !== 'push' && !oldSite.pushToken) {
-        const { generatePushToken } = await import('../../monitors/push.js');
         updates.pushToken = generatePushToken();
       }
     } else if (updates.url) {
@@ -144,26 +126,29 @@ export async function updateSite(request, env, siteId) {
       }
     }
 
-    state.sites[siteIndex] = { ...oldSite, ...updates };
+    // 检查关键字段是否变化，需要重置状态
+    const criticalFields = [
+      'url', 'monitorType', 'method', 'expectedStatus', 'dnsRecordType', 'dnsExpectedValue', 'tcpHost', 'tcpPort'
+    ];
+
+    const needReset = criticalFields.some(field => {
+      if (updates[field] === undefined) return false;
+      return updates[field] !== oldSite[field];
+    });
 
     if (needReset) {
-      state.sites[siteIndex].status = 'unknown';
-      state.sites[siteIndex].statusRaw = null;
-      state.sites[siteIndex].statusPending = null;
-      state.sites[siteIndex].statusPendingStartTime = null;
-      state.sites[siteIndex].lastCheckTime = null;
-      state.sites[siteIndex].responseTime = null;
-      state.sites[siteIndex].message = null;
-      state.sites[siteIndex].sslCert = null;
-      state.sites[siteIndex].sslCertLastCheck = null;
-      if (state.history && state.history[siteId]) {
-        state.history[siteId] = [];
-      }
+      updates.status = 'unknown';
+      updates.responseTime = 0;
+      updates.lastCheck = 0;
+      updates.sslCert = null;
+      updates.sslCertLastCheck = 0;
     }
 
-    await saveStateNow(env, state);  // 更新站点立即保存
+    await db.updateSite(env, siteId, updates);
+    
+    const updatedSite = await db.getSite(env, siteId);
 
-    return jsonResponse({ success: true, site: state.sites[siteIndex], configChanged: needReset, changedFields });
+    return jsonResponse({ success: true, site: updatedSite, configChanged: needReset });
   } catch (error) {
     return errorResponse('更新站点失败: ' + error.message, 500);
   }
@@ -171,20 +156,7 @@ export async function updateSite(request, env, siteId) {
 
 export async function deleteSite(request, env, siteId) {
   try {
-    const state = await getState(env);
-    state.sites = state.sites.filter(s => s.id !== siteId);
-    delete state.history?.[siteId];
-    delete state.incidents?.[siteId];
-    delete state.certificateAlerts?.[siteId];
-    if (Array.isArray(state.incidentIndex)) {
-      state.incidentIndex = state.incidentIndex.filter(inc => inc?.siteId !== siteId);
-    }
-    if (state.lastNotifications) {
-      Object.keys(state.lastNotifications).forEach(key => {
-        if (key.startsWith(`${siteId}:`)) delete state.lastNotifications[key];
-      });
-    }
-    await saveStateNow(env, state);  // 删除站点立即保存
+    await db.deleteSite(env, siteId);
     return jsonResponse({ success: true });
   } catch (error) {
     return errorResponse('删除站点失败: ' + error.message, 500);
@@ -194,13 +166,15 @@ export async function deleteSite(request, env, siteId) {
 export async function reorderSites(request, env) {
   try {
     const { siteIds } = await request.json();
-    if (!Array.isArray(siteIds) || siteIds.length === 0) return errorResponse('无效的站点ID列表', 400);
-    const state = await getState(env);
-    siteIds.forEach((id, index) => {
-      const site = state.sites.find(s => s.id === id);
-      if (site) site.sortOrder = index;
-    });
-    await saveStateNow(env, state);  // 排序变更立即保存
+    if (!Array.isArray(siteIds) || siteIds.length === 0) {
+      return errorResponse('无效的站点ID列表', 400);
+    }
+    
+    // 批量更新排序
+    for (let i = 0; i < siteIds.length; i++) {
+      await db.updateSite(env, siteIds[i], { sortOrder: i });
+    }
+    
     return jsonResponse({ success: true, message: '站点排序已更新' });
   } catch (error) {
     return errorResponse('更新排序失败: ' + error.message, 500);
@@ -209,8 +183,9 @@ export async function reorderSites(request, env) {
 
 export async function getHistory(request, env, siteId) {
   try {
-    const state = await getState(env);
-    const history = state.history[siteId] || [];
+    const settings = await db.getSettings(env);
+    const hours = settings.historyHours || 24;
+    const history = await db.getSiteHistory(env, siteId, hours);
     return jsonResponse({ siteId, history, stats: calculateStats(history) });
   } catch (error) {
     return errorResponse('获取历史失败: ' + error.message, 500);

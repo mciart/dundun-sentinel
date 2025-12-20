@@ -1,21 +1,23 @@
-// Dashboard controllers: public data, stats, history batch, and incidents
+// Dashboard controllers: public data, stats, history batch, and incidents - D1 版本
 import { jsonResponse, errorResponse } from '../../utils.js';
-import { getState, getSiteStatusCache, getHistoryCache } from '../../core/state.js';
+import * as db from '../../core/storage.js';
 import { calculateStats } from '../../core/stats.js';
 import { getPushHeartbeatCache } from './push.js';
 
 export async function getDashboardData(request, env) {
   try {
-    const state = await getState(env);
-    const sites = Array.isArray(state.sites) ? state.sites : [];
+    // 确保数据库已初始化
+    await db.initDatabase(env);
     
-    // 获取内存缓存中的心跳数据（Push 类型）
+    const sites = await db.getAllSites(env);
+    const groups = await db.getAllGroups(env);
+    const settings = await db.getSettings(env);
+    const incidents = await db.getAllIncidents(env, 50);
+    
+    // 获取内存缓存中的心跳数据（Push 类型，同一实例内）
     const heartbeatCache = getPushHeartbeatCache();
-    // 获取站点状态缓存（HTTP/DNS/TCP 类型）
-    const statusCache = getSiteStatusCache();
 
     const publicSites = sites.map(site => {
-      // 基础数据
       const siteData = {
         id: site.id,
         name: site.name,
@@ -29,12 +31,10 @@ export async function getDashboardData(request, env) {
         sslCertLastCheck: site.sslCertLastCheck || 0,
         sortOrder: site.sortOrder || 0,
         createdAt: site.createdAt || 0,
-        // Push 监控相关字段
         monitorType: site.monitorType || 'http',
         lastHeartbeat: site.lastHeartbeat || 0,
         pushData: site.pushData || null,
-        showInHostPanel: site.showInHostPanel !== false,  // 是否显示在主机监控面板
-        // DNS 监控相关字段
+        showInHostPanel: site.showInHostPanel !== false,
         dnsRecordType: site.dnsRecordType || 'A'
       };
       
@@ -47,45 +47,57 @@ export async function getDashboardData(request, env) {
         siteData.responseTime = cached.pushData?.latency || siteData.responseTime;
       }
       
-      // 非 Push 类型：检查站点状态缓存是否有更新的数据
-      if (site.monitorType !== 'push' && statusCache.has(site.id)) {
-        const cached = statusCache.get(site.id);
-        // 只有缓存数据比 KV 数据更新时才使用
-        if (cached.lastCheck > siteData.lastCheck) {
-          siteData.status = cached.status || siteData.status;
-          siteData.responseTime = cached.responseTime || siteData.responseTime;
-          siteData.lastCheck = cached.lastCheck || siteData.lastCheck;
-        }
-      }
-      
       return siteData;
     });
 
-    const groups = state.config?.groups || [{ id: 'default', name: '默认分类', order: 0 }];
-    const settings = {
-      siteName: state.config?.siteName || '炖炖守望',
-      siteSubtitle: state.config?.siteSubtitle || '慢慢炖，网站不 "糊锅"',
-      pageTitle: state.config?.pageTitle || '网站监控'
-    };
+    const formattedGroups = groups.map(g => ({
+      id: g.id,
+      name: g.name,
+      order: g.order || 0
+    }));
 
-    const incidents = Array.isArray(state.incidentIndex) ? state.incidentIndex : [];
-
-    return jsonResponse({ sites: publicSites, groups, settings, incidents });
+    return jsonResponse({ 
+      sites: publicSites, 
+      groups: formattedGroups, 
+      settings: {
+        siteName: settings.siteName || '炖炖守望',
+        siteSubtitle: settings.siteSubtitle || '慢慢炖，网站不 "糊锅"',
+        pageTitle: settings.pageTitle || '网站监控'
+      }, 
+      incidents 
+    });
   } catch (error) {
+    console.error('getDashboardData error:', error);
     return errorResponse('获取仪表盘失败: ' + error.message, 500);
   }
 }
 
 export async function getStats(request, env) {
   try {
-    const state = await getState(env);
-    const estimatedDailyWrites = Math.round(1440 / (state.config?.checkInterval || 10));
+    const stats = await db.getTodayStats(env);
+    const settings = await db.getSettings(env);
+    const sites = await db.getAllSites(env);
+    
+    const checkInterval = settings.checkInterval || 10;
+    const estimatedDailyWrites = Math.round(1440 / checkInterval);
     
     return jsonResponse({
-      ...state.stats,
+      writes: {
+        today: stats.writes,
+        total: stats.writes
+      },
+      checks: {
+        today: stats.checks,
+        total: stats.checks
+      },
+      sites: {
+        total: sites.length,
+        online: sites.filter(s => s.status === 'online').length,
+        offline: sites.filter(s => s.status === 'offline').length
+      },
       estimated: {
         dailyWrites: estimatedDailyWrites,
-        quotaUsage: ((state.stats?.writes?.today || 0) / 1000 * 100).toFixed(1)
+        quotaUsage: (stats.writes / 100000 * 100).toFixed(2)  // D1 有 100,000 次/天
       }
     });
   } catch (error) {
@@ -97,39 +109,22 @@ export async function getHistoryBatch(request, env) {
   try {
     const url = new URL(request.url);
     const hours = parseInt(url.searchParams.get('hours') || '24', 10);
-    const state = await getState(env);
-    const cutoffTime = Date.now() - (hours * 60 * 60 * 1000);
     
-    // 获取历史记录缓存
-    const historyCacheData = getHistoryCache();
-
-    const historyMap = {};
-    for (const site of (state.sites || [])) {
-      // 从 KV 获取历史数据
-      const raw = (state.history && state.history[site.id]) ? state.history[site.id] : [];
-      
-      // 合并内存缓存中的历史数据
-      const cachedRecords = historyCacheData.get(site.id) || [];
-      const merged = [...raw, ...cachedRecords];
-      
-      // 过滤和排序
-      const history = merged
-        .filter(record => record && typeof record.timestamp === 'number' && record.timestamp >= cutoffTime)
-        .sort((a, b) => b.timestamp - a.timestamp);
-      
-      // 去重（基于 timestamp）
-      const seen = new Set();
-      const deduped = history.filter(record => {
-        if (seen.has(record.timestamp)) return false;
-        seen.add(record.timestamp);
-        return true;
-      });
-      
-      const stats = calculateStats(deduped);
-      historyMap[site.id] = { history: deduped, stats };
+    const sites = await db.getAllSites(env);
+    const siteIds = sites.map(s => s.id);
+    
+    // 批量获取历史记录
+    const historyMap = await db.batchGetSiteHistory(env, siteIds, hours);
+    
+    // 计算统计数据
+    const result = {};
+    for (const site of sites) {
+      const history = historyMap[site.id] || [];
+      const stats = calculateStats(history);
+      result[site.id] = { history, stats };
     }
 
-    return jsonResponse(historyMap);
+    return jsonResponse(result);
   } catch (error) {
     return errorResponse('获取历史数据失败: ' + error.message, 500);
   }
@@ -137,11 +132,8 @@ export async function getHistoryBatch(request, env) {
 
 export async function getIncidents(request, env) {
   try {
-    const state = await getState(env);
-    const incidentList = Array.isArray(state.incidentIndex) ? state.incidentIndex : [];
-    return jsonResponse({
-      incidents: incidentList
-    });
+    const incidents = await db.getAllIncidents(env, 100);
+    return jsonResponse({ incidents });
   } catch (error) {
     return errorResponse('获取事件失败: ' + error.message, 500);
   }
@@ -149,12 +141,15 @@ export async function getIncidents(request, env) {
 
 export async function getStatus(request, env) {
   try {
-    const state = await getState(env);
+    const sites = await db.getAllSites(env);
+    const settings = await db.getSettings(env);
+    const stats = await db.getTodayStats(env);
+    
     return jsonResponse({
-      sites: state.sites || [],
-      config: state.config || {},
-      stats: state.stats || {},
-      lastUpdate: state.lastUpdate
+      sites,
+      config: settings,
+      stats,
+      lastUpdate: Date.now()
     });
   } catch (error) {
     return errorResponse('获取状态失败: ' + error.message, 500);

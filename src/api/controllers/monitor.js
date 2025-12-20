@@ -1,14 +1,14 @@
-// Monitor controllers: trigger check, test notifications
+// Monitor controllers: trigger check, test notifications - D1 版本
 import { jsonResponse, errorResponse } from '../../utils.js';
-import { getState } from '../../core/state.js';
+import * as db from '../../core/storage.js';
 import { handleMonitor } from '../../monitor.js';
 import { sendNotifications } from '../../notifications/index.js';
 
 export async function triggerCheck(request, env, ctx) {
   try {
-    // 同步执行监控任务，只更新内存不写入 KV（skipKV = true）
-    await handleMonitor(env, ctx, false, true);
-    return jsonResponse({ success: true, message: '检测完成，数据已更新到内存' });
+    // 同步执行监控任务
+    await handleMonitor(env, ctx);
+    return jsonResponse({ success: true, message: '检测完成，数据已更新' });
   } catch (error) {
     return errorResponse('触发监控失败: ' + error.message, 500);
   }
@@ -16,8 +16,8 @@ export async function triggerCheck(request, env, ctx) {
 
 export async function triggerCheckAsync(request, env, ctx) {
   try {
-    // 异步执行，只更新内存
-    ctx.waitUntil(handleMonitor(env, ctx, false, true));
+    // 异步执行
+    ctx.waitUntil(handleMonitor(env, ctx));
     return jsonResponse({ success: true, message: '监控任务已触发' });
   } catch (error) {
     return errorResponse('触发监控失败: ' + error.message, 500);
@@ -32,23 +32,25 @@ export async function testNotification(request, env) {
       return errorResponse('无效的通知类型', 400);
     }
     
-    const state = await getState(env);
+    const settings = await db.getSettings(env);
     
-    if (!state.config?.notifications?.enabled) {
+    if (!settings.notifications?.enabled) {
       return errorResponse('通知功能未启用', 400);
     }
     
+    const sites = await db.getAllSites(env);
+    
     let site;
     if (siteId) {
-      site = state.sites.find(s => s.id === siteId);
+      site = sites.find(s => s.id === siteId);
       if (!site) {
         return errorResponse('站点不存在', 404);
       }
     } else {
-      if (!state.sites || state.sites.length === 0) {
+      if (!sites || sites.length === 0) {
         return errorResponse('没有可用的站点', 400);
       }
-      site = state.sites[Math.floor(Math.random() * state.sites.length)];
+      site = sites[Math.floor(Math.random() * sites.length)];
     }
     
     // 使用真实的 SSL 证书数据
@@ -76,7 +78,7 @@ export async function testNotification(request, env) {
       certValidTo: type === 'cert_warning' ? realCertValidTo : undefined
     };
     
-    await sendNotifications(env, incident, site, state.config.notifications);
+    await sendNotifications(env, incident, site, settings.notifications);
     
     return jsonResponse({
       success: true,

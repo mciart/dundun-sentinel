@@ -12,13 +12,12 @@ binding = "ASSETS"
 html_handling = "auto-trailing-slash"
 not_found_handling = "single-page-application"
 
-# KV 命名空间绑定
-# 注意：实际部署时需要通过 GitHub Secrets 配置 KV_NAMESPACE_ID
-# 本地开发使用 --local 模式，会自动创建本地 KV
-[[kv_namespaces]]
-binding = "MONITOR_DATA"
-id = "YOUR_KV_NAMESPACE_ID"
-preview_id = ""
+# D1 数据库绑定（主要数据存储）
+# 注意：需要先创建 D1 数据库：npx wrangler d1 create dundun-sentinel-db
+[[d1_databases]]
+binding = "DB"
+database_name = "dundun-sentinel-db"
+database_id = "YOUR_D1_DATABASE_ID"
 
 # 定时任务
 [triggers]

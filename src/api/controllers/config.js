@@ -1,12 +1,12 @@
-// Config controllers: settings, groups, and admin path
+// Config controllers: settings, groups, and admin path - D1 版本
 import { jsonResponse, errorResponse } from '../../utils.js';
-import { getState, saveStateNow } from '../../core/state.js';
-import { getAdminPath as fetchAdminPath, putAdminPath as saveAdminPath } from '../../core/storage.js';
+import * as db from '../../core/storage.js';
 
 export async function getSettings(request, env) {
   try {
-    const state = await getState(env);
-    return jsonResponse(state.config || {});
+    const settings = await db.getSettings(env);
+    const groups = await db.getAllGroups(env);
+    return jsonResponse({ ...settings, groups });
   } catch (error) {
     return errorResponse('获取设置失败: ' + error.message, 500);
   }
@@ -15,10 +15,16 @@ export async function getSettings(request, env) {
 export async function updateSettings(request, env) {
   try {
     const newSettings = await request.json();
-    const state = await getState(env);
-    state.config = { ...state.config, ...newSettings };
-    await saveStateNow(env, state);
-    return jsonResponse({ success: true, config: state.config });
+    const currentSettings = await db.getSettings(env);
+    const merged = { ...currentSettings, ...newSettings };
+    
+    // 排除 groups，groups 通过单独的 API 管理
+    delete merged.groups;
+    
+    await db.saveSettings(env, merged);
+    
+    const groups = await db.getAllGroups(env);
+    return jsonResponse({ success: true, config: { ...merged, groups } });
   } catch (error) {
     return errorResponse('更新设置失败: ' + error.message, 500);
   }
@@ -26,8 +32,7 @@ export async function updateSettings(request, env) {
 
 export async function getGroups(request, env) {
   try {
-    const state = await getState(env);
-    const groups = state.config?.groups || [{ id: 'default', name: '默认分类', order: 0 }];
+    const groups = await db.getAllGroups(env);
     return jsonResponse({ groups });
   } catch (error) {
     return errorResponse('获取分类失败: ' + error.message, 500);
@@ -43,26 +48,22 @@ export async function addGroup(request, env) {
       return errorResponse('分类名称不能为空', 400);
     }
 
-    const state = await getState(env);
-    if (!state.config.groups) {
-      state.config.groups = [{ id: 'default', name: '默认分类', order: 0 }];
-    }
+    const groups = await db.getAllGroups(env);
 
-    if (state.config.groups.some(g => g.name === name)) {
+    if (groups.some(g => g.name === name)) {
       return errorResponse('分类名称已存在', 400);
     }
 
     const newGroup = {
       id: `group_${Date.now()}`,
       name: name.trim(),
-      order: order || state.config.groups.length,
+      order: order || groups.length,
       icon: icon ? icon.trim() : null,
       iconColor: iconColor ? iconColor.trim() : null,
       createdAt: Date.now()
     };
 
-    state.config.groups.push(newGroup);
-    await saveStateNow(env, state);
+    await db.createGroup(env, newGroup);
 
     return jsonResponse({
       success: true,
@@ -83,33 +84,26 @@ export async function updateGroup(request, env, groupId) {
       return errorResponse('分类名称不能为空', 400);
     }
 
-    const state = await getState(env);
-    const groupIndex = state.config.groups.findIndex(g => g.id === groupId);
+    const groups = await db.getAllGroups(env);
+    const existingGroup = groups.find(g => g.id === groupId);
 
-    if (groupIndex === -1) {
+    if (!existingGroup) {
       return errorResponse('分类不存在', 404);
     }
 
-    if (state.config.groups.some(g => g.id !== groupId && g.name === name)) {
+    if (groups.some(g => g.id !== groupId && g.name === name)) {
       return errorResponse('分类名称已存在', 400);
     }
 
-    state.config.groups[groupIndex].name = name.trim();
-    if (icon !== undefined) {
-      state.config.groups[groupIndex].icon = icon ? icon.trim() : null;
-    }
-    if (iconColor !== undefined) {
-      state.config.groups[groupIndex].iconColor = iconColor ? iconColor.trim() : null;
-    }
-    if (order !== undefined) {
-      state.config.groups[groupIndex].order = order;
-    }
-
-    await saveStateNow(env, state);
+    await db.updateGroup(env, groupId, {
+      name: name.trim(),
+      order: order !== undefined ? order : existingGroup.order,
+      icon: icon !== undefined ? (icon ? icon.trim() : null) : existingGroup.icon,
+      iconColor: iconColor !== undefined ? (iconColor ? iconColor.trim() : null) : existingGroup.iconColor
+    });
 
     return jsonResponse({
       success: true,
-      group: state.config.groups[groupIndex],
       message: '分类更新成功'
     });
   } catch (error) {
@@ -123,29 +117,18 @@ export async function deleteGroup(request, env, groupId) {
       return errorResponse('不能删除默认分类', 400);
     }
 
-    const state = await getState(env);
-    const groupIndex = state.config.groups.findIndex(g => g.id === groupId);
+    const groups = await db.getAllGroups(env);
+    const existingGroup = groups.find(g => g.id === groupId);
 
-    if (groupIndex === -1) {
+    if (!existingGroup) {
       return errorResponse('分类不存在', 404);
     }
 
-    // 将该分类下的站点移到默认分类
-    const sitesInGroup = state.sites.filter(s => s.groupId === groupId);
-    if (sitesInGroup.length > 0) {
-      state.sites.forEach(site => {
-        if (site.groupId === groupId) {
-          site.groupId = 'default';
-        }
-      });
-    }
-
-    state.config.groups.splice(groupIndex, 1);
-    await saveStateNow(env, state);
+    await db.deleteGroup(env, groupId);
 
     return jsonResponse({
       success: true,
-      message: `分类已删除，${sitesInGroup.length} 个站点已移至默认分类`
+      message: '分类已删除，相关站点已移至默认分类'
     });
   } catch (error) {
     return errorResponse('删除分类失败: ' + error.message, 500);
@@ -154,9 +137,8 @@ export async function deleteGroup(request, env, groupId) {
 
 export async function getAdminPath(request, env) {
   try {
-    const kvAdminPath = await fetchAdminPath(env);
-    const adminPath = kvAdminPath || 'admin';
-    return jsonResponse({ path: adminPath });
+    const adminPath = await db.getAdminPath(env);
+    return jsonResponse({ path: adminPath || 'admin' });
   } catch (error) {
     return errorResponse('获取后台路径失败: ' + error.message, 500);
   }
@@ -186,9 +168,27 @@ export async function updateAdminPath(request, env) {
       return errorResponse(`"${cleanPath}" 是系统保留路径，请使用其他名称`, 400);
     }
 
-    await saveAdminPath(env, cleanPath);
+    await db.setAdminPath(env, cleanPath);
     return jsonResponse({ success: true, message: '后台路径修改成功', newPath: cleanPath });
   } catch (error) {
     return errorResponse('修改后台路径失败: ' + error.message, 500);
+  }
+}
+
+// 分组排序
+export async function reorderGroups(request, env) {
+  try {
+    const { groupIds } = await request.json();
+    if (!Array.isArray(groupIds) || groupIds.length === 0) {
+      return errorResponse('无效的分组ID列表', 400);
+    }
+    
+    for (let i = 0; i < groupIds.length; i++) {
+      await db.updateGroup(env, groupIds[i], { order: i });
+    }
+    
+    return jsonResponse({ success: true, message: '分组排序已更新' });
+  } catch (error) {
+    return errorResponse('更新排序失败: ' + error.message, 500);
   }
 }

@@ -1,12 +1,11 @@
 // Push/心跳监控 API 控制器
-import { getState, saveStateNow, addHistoryRecord } from '../../core/state.js';
+import { getAllSites, getSite, updatePushHeartbeat } from '../../core/storage.js';
 import { jsonResponse, errorResponse, corsHeaders } from '../../utils.js';
 import { generatePushToken, isValidPushToken } from '../../monitors/push.js';
 
 /**
- * 内存缓存：存储心跳数据，避免每次都写入 KV
- * 这些数据会在下次 Cron 执行时被写入 KV
- * 注意：Worker 实例可能会被销毁，所以这只是临时缓存
+ * 内存缓存：存储心跳数据，用于同一实例内快速读取
+ * D1 版本中，数据会立即写入数据库，内存缓存仅作为补充
  */
 const pushHeartbeatCache = new Map();
 
@@ -28,8 +27,7 @@ export function clearPushHeartbeatCache() {
  * 处理心跳上报 - 公开接口，通过 Token 验证
  * POST /api/push/:token
  * 
- * 优化：不立即写入 KV，而是缓存在内存中，由 Cron 统一处理
- * 这样可以大幅减少 KV 写入次数
+ * D1 版本：直接写入数据库，无需担心写入配额
  */
 export async function handlePushReport(request, env, token) {
   try {
@@ -38,10 +36,10 @@ export async function handlePushReport(request, env, token) {
       return errorResponse('无效的 Token', 400);
     }
 
-    const state = await getState(env);
+    const sites = await getAllSites(env);
     
     // 查找对应的站点
-    const site = state.sites.find(s => s.pushToken === token && s.monitorType === 'push');
+    const site = sites.find(s => s.pushToken === token && s.monitorType === 'push');
     
     if (!site) {
       return errorResponse('站点不存在或 Token 无效', 404);
@@ -63,11 +61,7 @@ export async function handlePushReport(request, env, token) {
 
     const now = Date.now();
     
-    // 将心跳数据存入内存缓存，而不是直接写入 KV
-    // 这样可以避免每次心跳都写入 KV，节省写入配额
-    pushHeartbeatCache.set(site.id, {
-      lastHeartbeat: now,
-      status: 'online',
+    const heartbeatData = {
       pushData: {
         cpu: pushData.cpu ?? null,
         memory: pushData.memory ?? pushData.mem ?? pushData.ram ?? null,
@@ -81,26 +75,26 @@ export async function handlePushReport(request, env, token) {
         reportedAt: now
       },
       responseTime: pushData.latency || 0
-    });
+    };
 
-    // 同时添加历史记录缓存（用于实时显示进度条）
-    addHistoryRecord(site.id, {
-      timestamp: now,
+    // 同时更新内存缓存（供同一实例内快速读取）
+    pushHeartbeatCache.set(site.id, {
+      lastHeartbeat: now,
       status: 'online',
-      statusCode: 200,
-      responseTime: pushData.latency || 0,
-      message: 'OK'
+      ...heartbeatData
     });
 
-    console.log(`📡 收到心跳: ${site.name} (缓存中，等待 Cron 写入)`);
+    // 直接写入 D1 数据库（包含站点状态和历史记录）
+    await updatePushHeartbeat(env, site.id, heartbeatData);
+
+    console.log(`📡 收到心跳: ${site.name} (已写入 D1)`);
 
     return jsonResponse({ 
       success: true, 
       message: '心跳已记录',
       timestamp: now,
       siteId: site.id,
-      siteName: site.name,
-      note: '数据将在下次监控周期统一保存'
+      siteName: site.name
     });
   } catch (error) {
     console.error('处理心跳上报失败:', error);
@@ -114,8 +108,7 @@ export async function handlePushReport(request, env, token) {
  */
 export async function regeneratePushToken(request, env, siteId) {
   try {
-    const state = await getState(env);
-    const site = state.sites.find(s => s.id === siteId);
+    const site = await getSite(env, siteId);
     
     if (!site) {
       return errorResponse('站点不存在', 404);
@@ -126,9 +119,10 @@ export async function regeneratePushToken(request, env, siteId) {
     }
 
     const newToken = generatePushToken();
-    site.pushToken = newToken;
     
-    await saveStateNow(env, state);  // Token 重置立即保存
+    // 直接更新数据库中的 token
+    const { updateSite } = await import('../../core/storage.js');
+    await updateSite(env, siteId, { pushToken: newToken });
 
     return jsonResponse({ 
       success: true, 
@@ -145,8 +139,7 @@ export async function regeneratePushToken(request, env, siteId) {
  */
 export async function getPushConfig(request, env, siteId) {
   try {
-    const state = await getState(env);
-    const site = state.sites.find(s => s.id === siteId);
+    const site = await getSite(env, siteId);
     
     if (!site) {
       return errorResponse('站点不存在', 404);

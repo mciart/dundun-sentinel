@@ -1,67 +1,853 @@
-// Lightweight KV storage abstraction
-// Purpose: centralize KV operations and provide hooks for future migration to D1
+// D1 数据库存储层
+// 替代 KV 存储，提供 100,000 次/天的写入配额
 
-export async function getRaw(env, key, options = {}) {
-  return await env.MONITOR_DATA.get(key, options);
+/**
+ * 获取北京日期字符串
+ */
+function getBeijingDate() {
+  const now = new Date();
+  const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  return beijingTime.toISOString().split('T')[0];
 }
 
-export async function putRaw(env, key, value) {
-  return await env.MONITOR_DATA.put(key, value);
+// ==================== 配置操作 ====================
+
+/**
+ * 获取配置项
+ */
+export async function getConfig(env, key) {
+  const result = await env.DB.prepare(
+    'SELECT value FROM config WHERE key = ?'
+  ).bind(key).first();
+  return result ? JSON.parse(result.value) : null;
 }
 
-export async function getMonitorState(env) {
-  const state = await env.MONITOR_DATA.get('monitor_state', { type: 'json' });
-  return state || null;
+/**
+ * 设置配置项
+ */
+export async function setConfig(env, key, value) {
+  const now = Date.now();
+  await env.DB.prepare(
+    'INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)'
+  ).bind(key, JSON.stringify(value), now).run();
 }
 
-export async function putMonitorState(env, state) {
-  await env.MONITOR_DATA.put('monitor_state', JSON.stringify(state));
-}
-
-export async function getSiteHistory(env, siteId) {
-  const raw = await env.MONITOR_DATA.get(`history:${siteId}`, { type: 'json' });
-  return Array.isArray(raw) ? raw : [];
-}
-
-export async function putSiteHistory(env, siteId, history) {
-  await env.MONITOR_DATA.put(`history:${siteId}`, JSON.stringify(history));
-}
-
-export async function getAdminPath(env) {
-  return await env.MONITOR_DATA.get('admin_path');
-}
-
-export async function putAdminPath(env, path) {
-  await env.MONITOR_DATA.put('admin_path', path);
-}
-
-export async function getAdminPassword(env) {
-  return await env.MONITOR_DATA.get('admin_password');
-}
-
-export async function putAdminPassword(env, hash) {
-  await env.MONITOR_DATA.put('admin_password', hash);
-}
-
-// Simple helpers for per-site kv keys; may be replaced with proper DB later
-export function historyKey(siteId) {
-  return `history:${siteId}`;
-}
-
-export function configKey() {
-  return `config`;
-}
-
-export async function clearAllData(env) {
-  let cursor;
-  do {
-    const list = await env.MONITOR_DATA.list({ cursor });
-    const keys = Array.isArray(list.keys) ? list.keys : [];
-    for (const key of keys) {
-      if (key && key.name) {
-        await env.MONITOR_DATA.delete(key.name);
+/**
+ * 获取全局设置
+ */
+export async function getSettings(env) {
+  const result = await getConfig(env, 'settings');
+  return result || {
+    siteName: '炖炖守望',
+    siteSubtitle: '慢慢炖，网站不"糊锅"',
+    pageTitle: '网站监控',
+    historyHours: 24,
+    retentionHours: 720,
+    checkInterval: 10,
+    statusChangeDebounceMinutes: 3,
+    notifications: {
+      enabled: false,
+      events: ['down', 'recovered', 'cert_warning'],
+      channels: {
+        email: { enabled: false, to: '', from: '' },
+        wecom: { enabled: false, webhook: '' }
       }
     }
-    cursor = list.cursor;
-  } while (cursor);
+  };
+}
+
+/**
+ * 保存全局设置
+ */
+export async function saveSettings(env, settings) {
+  await setConfig(env, 'settings', settings);
+}
+
+// ==================== 站点操作 ====================
+
+/**
+ * 获取所有站点
+ */
+export async function getAllSites(env) {
+  const results = await env.DB.prepare(
+    'SELECT * FROM sites ORDER BY sort_order ASC, created_at ASC'
+  ).all();
+  
+  return (results.results || []).map(row => ({
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    monitorType: row.monitor_type,
+    status: row.status,
+    responseTime: row.response_time,
+    lastCheck: row.last_check,
+    groupId: row.group_id,
+    sortOrder: row.sort_order,
+    showUrl: !!row.show_url,
+    createdAt: row.created_at,
+    // HTTP
+    method: row.method,
+    expectedStatus: row.expected_status,
+    timeout: row.timeout,
+    headers: row.headers ? JSON.parse(row.headers) : null,
+    body: row.body,
+    // DNS
+    dnsRecordType: row.dns_record_type,
+    dnsExpectedValue: row.dns_expected_value,
+    // TCP
+    tcpPort: row.tcp_port,
+    // Push
+    pushToken: row.push_token,
+    pushInterval: row.push_interval,
+    lastHeartbeat: row.last_heartbeat,
+    pushData: row.push_data ? JSON.parse(row.push_data) : null,
+    showInHostPanel: !!row.show_in_host_panel,
+    // SSL
+    sslCert: row.ssl_cert ? JSON.parse(row.ssl_cert) : null,
+    sslCertLastCheck: row.ssl_cert_last_check,
+    // 消息
+    lastMessage: row.last_message
+  }));
+}
+
+/**
+ * 获取单个站点
+ */
+export async function getSite(env, siteId) {
+  const row = await env.DB.prepare(
+    'SELECT * FROM sites WHERE id = ?'
+  ).bind(siteId).first();
+  
+  if (!row) return null;
+  
+  return {
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    monitorType: row.monitor_type,
+    status: row.status,
+    responseTime: row.response_time,
+    lastCheck: row.last_check,
+    groupId: row.group_id,
+    sortOrder: row.sort_order,
+    showUrl: !!row.show_url,
+    createdAt: row.created_at,
+    method: row.method,
+    expectedStatus: row.expected_status,
+    timeout: row.timeout,
+    headers: row.headers ? JSON.parse(row.headers) : null,
+    body: row.body,
+    dnsRecordType: row.dns_record_type,
+    dnsExpectedValue: row.dns_expected_value,
+    tcpPort: row.tcp_port,
+    pushToken: row.push_token,
+    pushInterval: row.push_interval,
+    lastHeartbeat: row.last_heartbeat,
+    pushData: row.push_data ? JSON.parse(row.push_data) : null,
+    showInHostPanel: !!row.show_in_host_panel,
+    sslCert: row.ssl_cert ? JSON.parse(row.ssl_cert) : null,
+    sslCertLastCheck: row.ssl_cert_last_check,
+    lastMessage: row.last_message
+  };
+}
+
+/**
+ * 创建站点
+ */
+export async function createSite(env, site) {
+  const now = Date.now();
+  await env.DB.prepare(`
+    INSERT INTO sites (
+      id, name, url, monitor_type, status, response_time, last_check,
+      group_id, sort_order, show_url, created_at,
+      method, expected_status, timeout, headers, body,
+      dns_record_type, dns_expected_value,
+      tcp_port,
+      push_token, push_interval, last_heartbeat, push_data, show_in_host_panel,
+      ssl_cert, ssl_cert_last_check, last_message
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    site.id,
+    site.name,
+    site.url,
+    site.monitorType || 'http',
+    site.status || 'unknown',
+    site.responseTime || 0,
+    site.lastCheck || 0,
+    site.groupId || 'default',
+    site.sortOrder || 0,
+    site.showUrl ? 1 : 0,
+    site.createdAt || now,
+    site.method || 'GET',
+    site.expectedStatus || 200,
+    site.timeout || 30000,
+    site.headers ? JSON.stringify(site.headers) : null,
+    site.body || null,
+    site.dnsRecordType || 'A',
+    site.dnsExpectedValue || null,
+    site.tcpPort || null,
+    site.pushToken || null,
+    site.pushInterval || 60,
+    site.lastHeartbeat || 0,
+    site.pushData ? JSON.stringify(site.pushData) : null,
+    site.showInHostPanel ? 1 : 0,
+    site.sslCert ? JSON.stringify(site.sslCert) : null,
+    site.sslCertLastCheck || 0,
+    site.lastMessage || null
+  ).run();
+  
+  await incrementStats(env, 'writes');
+}
+
+/**
+ * 更新站点
+ */
+export async function updateSite(env, siteId, updates) {
+  const site = await getSite(env, siteId);
+  if (!site) return false;
+  
+  const merged = { ...site, ...updates };
+  
+  await env.DB.prepare(`
+    UPDATE sites SET
+      name = ?, url = ?, monitor_type = ?, status = ?, response_time = ?, last_check = ?,
+      group_id = ?, sort_order = ?, show_url = ?,
+      method = ?, expected_status = ?, timeout = ?, headers = ?, body = ?,
+      dns_record_type = ?, dns_expected_value = ?,
+      tcp_port = ?,
+      push_token = ?, push_interval = ?, last_heartbeat = ?, push_data = ?, show_in_host_panel = ?,
+      ssl_cert = ?, ssl_cert_last_check = ?, last_message = ?
+    WHERE id = ?
+  `).bind(
+    merged.name,
+    merged.url,
+    merged.monitorType,
+    merged.status,
+    merged.responseTime,
+    merged.lastCheck,
+    merged.groupId,
+    merged.sortOrder,
+    merged.showUrl ? 1 : 0,
+    merged.method,
+    merged.expectedStatus,
+    merged.timeout,
+    merged.headers ? JSON.stringify(merged.headers) : null,
+    merged.body,
+    merged.dnsRecordType,
+    merged.dnsExpectedValue,
+    merged.tcpPort,
+    merged.pushToken,
+    merged.pushInterval,
+    merged.lastHeartbeat,
+    merged.pushData ? JSON.stringify(merged.pushData) : null,
+    merged.showInHostPanel ? 1 : 0,
+    merged.sslCert ? JSON.stringify(merged.sslCert) : null,
+    merged.sslCertLastCheck,
+    merged.lastMessage,
+    siteId
+  ).run();
+  
+  await incrementStats(env, 'writes');
+  return true;
+}
+
+/**
+ * 批量更新站点状态（优化：单次事务）
+ */
+export async function batchUpdateSiteStatus(env, updates) {
+  if (!updates || updates.length === 0) return;
+  
+  const statements = updates.map(u => 
+    env.DB.prepare(`
+      UPDATE sites SET status = ?, response_time = ?, last_check = ?, last_message = ?
+      WHERE id = ?
+    `).bind(u.status, u.responseTime, u.lastCheck, u.message || null, u.siteId)
+  );
+  
+  await env.DB.batch(statements);
+  await incrementStats(env, 'writes', updates.length);
+}
+
+/**
+ * 删除站点
+ */
+export async function deleteSite(env, siteId) {
+  // 同时删除历史记录和事件（级联删除）
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM history WHERE site_id = ?').bind(siteId),
+    env.DB.prepare('DELETE FROM incidents WHERE site_id = ?').bind(siteId),
+    env.DB.prepare('DELETE FROM certificate_alerts WHERE site_id = ?').bind(siteId),
+    env.DB.prepare('DELETE FROM sites WHERE id = ?').bind(siteId)
+  ]);
+  await incrementStats(env, 'writes', 4);
+}
+
+// ==================== 历史记录操作 ====================
+
+/**
+ * 添加历史记录
+ */
+export async function addHistory(env, siteId, record) {
+  await env.DB.prepare(`
+    INSERT INTO history (site_id, timestamp, status, status_code, response_time, message)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(
+    siteId,
+    record.timestamp,
+    record.status,
+    record.statusCode || 0,
+    record.responseTime || 0,
+    record.message || null
+  ).run();
+  
+  await incrementStats(env, 'writes');
+}
+
+/**
+ * 批量添加历史记录（优化：单次事务）
+ */
+export async function batchAddHistory(env, records) {
+  if (!records || records.length === 0) return;
+  
+  const statements = records.map(r =>
+    env.DB.prepare(`
+      INSERT INTO history (site_id, timestamp, status, status_code, response_time, message)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(r.siteId, r.timestamp, r.status, r.statusCode || 0, r.responseTime || 0, r.message || null)
+  );
+  
+  await env.DB.batch(statements);
+  await incrementStats(env, 'writes', records.length);
+}
+
+/**
+ * 获取站点历史记录
+ */
+export async function getSiteHistory(env, siteId, hours = 24) {
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  const results = await env.DB.prepare(`
+    SELECT timestamp, status, status_code, response_time, message
+    FROM history
+    WHERE site_id = ? AND timestamp > ?
+    ORDER BY timestamp DESC
+    LIMIT 1000
+  `).bind(siteId, cutoff).all();
+  
+  return (results.results || []).map(row => ({
+    timestamp: row.timestamp,
+    status: row.status,
+    statusCode: row.status_code,
+    responseTime: row.response_time,
+    message: row.message
+  }));
+}
+
+/**
+ * 批量获取多个站点的历史记录
+ */
+export async function batchGetSiteHistory(env, siteIds, hours = 24) {
+  if (!siteIds || siteIds.length === 0) return {};
+  
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  const placeholders = siteIds.map(() => '?').join(',');
+  
+  const results = await env.DB.prepare(`
+    SELECT site_id, timestamp, status, status_code, response_time, message
+    FROM history
+    WHERE site_id IN (${placeholders}) AND timestamp > ?
+    ORDER BY timestamp DESC
+  `).bind(...siteIds, cutoff).all();
+  
+  // 按站点 ID 分组
+  const historyMap = {};
+  for (const row of (results.results || [])) {
+    if (!historyMap[row.site_id]) {
+      historyMap[row.site_id] = [];
+    }
+    historyMap[row.site_id].push({
+      timestamp: row.timestamp,
+      status: row.status,
+      statusCode: row.status_code,
+      responseTime: row.response_time,
+      message: row.message
+    });
+  }
+  
+  return historyMap;
+}
+
+/**
+ * 清理旧历史记录
+ */
+export async function cleanupOldHistory(env, retentionHours = 720) {
+  const cutoff = Date.now() - retentionHours * 60 * 60 * 1000;
+  const result = await env.DB.prepare(
+    'DELETE FROM history WHERE timestamp < ?'
+  ).bind(cutoff).run();
+  
+  console.log(`🧹 清理了 ${result.meta?.changes || 0} 条旧历史记录`);
+  return result.meta?.changes || 0;
+}
+
+// ==================== 分组操作 ====================
+
+/**
+ * 获取所有分组
+ */
+export async function getAllGroups(env) {
+  const results = await env.DB.prepare(
+    'SELECT * FROM groups ORDER BY sort_order ASC'
+  ).all();
+  
+  return (results.results || []).map(row => ({
+    id: row.id,
+    name: row.name,
+    order: row.sort_order,
+    createdAt: row.created_at
+  }));
+}
+
+/**
+ * 创建分组
+ */
+export async function createGroup(env, group) {
+  await env.DB.prepare(`
+    INSERT INTO groups (id, name, sort_order, created_at)
+    VALUES (?, ?, ?, ?)
+  `).bind(
+    group.id,
+    group.name,
+    group.order || 0,
+    group.createdAt || Date.now()
+  ).run();
+  await incrementStats(env, 'writes');
+}
+
+/**
+ * 更新分组
+ */
+export async function updateGroup(env, groupId, updates) {
+  await env.DB.prepare(`
+    UPDATE groups SET name = ?, sort_order = ? WHERE id = ?
+  `).bind(updates.name, updates.order || 0, groupId).run();
+  await incrementStats(env, 'writes');
+}
+
+/**
+ * 删除分组
+ */
+export async function deleteGroup(env, groupId) {
+  // 将该分组的站点移到默认分组
+  await env.DB.batch([
+    env.DB.prepare('UPDATE sites SET group_id = ? WHERE group_id = ?').bind('default', groupId),
+    env.DB.prepare('DELETE FROM groups WHERE id = ?').bind(groupId)
+  ]);
+  await incrementStats(env, 'writes', 2);
+}
+
+// ==================== 事件操作 ====================
+
+/**
+ * 创建事件
+ */
+export async function createIncident(env, incident) {
+  await env.DB.prepare(`
+    INSERT INTO incidents (id, site_id, site_name, start_time, end_time, status, reason, resolved_reason, duration)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    incident.id,
+    incident.siteId,
+    incident.siteName,
+    incident.startTime,
+    incident.endTime || null,
+    incident.status || 'ongoing',
+    incident.reason || null,
+    incident.resolvedReason || null,
+    incident.duration || null
+  ).run();
+  await incrementStats(env, 'writes');
+}
+
+/**
+ * 更新事件
+ */
+export async function updateIncident(env, incidentId, updates) {
+  await env.DB.prepare(`
+    UPDATE incidents SET end_time = ?, status = ?, resolved_reason = ?, duration = ?
+    WHERE id = ?
+  `).bind(
+    updates.endTime || null,
+    updates.status || 'ongoing',
+    updates.resolvedReason || null,
+    updates.duration || null,
+    incidentId
+  ).run();
+  await incrementStats(env, 'writes');
+}
+
+/**
+ * 获取所有事件
+ */
+export async function getAllIncidents(env, limit = 100) {
+  const results = await env.DB.prepare(`
+    SELECT * FROM incidents ORDER BY start_time DESC LIMIT ?
+  `).bind(limit).all();
+  
+  return (results.results || []).map(row => ({
+    id: row.id,
+    siteId: row.site_id,
+    siteName: row.site_name,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    status: row.status,
+    reason: row.reason,
+    resolvedReason: row.resolved_reason,
+    duration: row.duration
+  }));
+}
+
+/**
+ * 获取站点的未解决事件
+ */
+export async function getOngoingIncident(env, siteId) {
+  const row = await env.DB.prepare(`
+    SELECT * FROM incidents WHERE site_id = ? AND status = 'ongoing' ORDER BY start_time DESC LIMIT 1
+  `).bind(siteId).first();
+  
+  if (!row) return null;
+  
+  return {
+    id: row.id,
+    siteId: row.site_id,
+    siteName: row.site_name,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    status: row.status,
+    reason: row.reason,
+    resolvedReason: row.resolved_reason,
+    duration: row.duration
+  };
+}
+
+// ==================== 统计操作 ====================
+
+/**
+ * 增加统计计数
+ */
+export async function incrementStats(env, type, count = 1) {
+  const date = getBeijingDate();
+  await env.DB.prepare(`
+    INSERT INTO stats (date, ${type})
+    VALUES (?, ?)
+    ON CONFLICT(date) DO UPDATE SET ${type} = ${type} + ?
+  `).bind(date, count, count).run();
+}
+
+/**
+ * 获取今日统计
+ */
+export async function getTodayStats(env) {
+  const date = getBeijingDate();
+  const row = await env.DB.prepare(
+    'SELECT * FROM stats WHERE date = ?'
+  ).bind(date).first();
+  
+  return {
+    date,
+    writes: row?.writes || 0,
+    reads: row?.reads || 0,
+    checks: row?.checks || 0
+  };
+}
+
+/**
+ * 获取统计历史
+ */
+export async function getStatsHistory(env, days = 7) {
+  const results = await env.DB.prepare(`
+    SELECT * FROM stats ORDER BY date DESC LIMIT ?
+  `).bind(days).all();
+  
+  return (results.results || []).map(row => ({
+    date: row.date,
+    writes: row.writes,
+    reads: row.reads,
+    checks: row.checks
+  }));
+}
+
+// ==================== 认证操作 ====================
+
+/**
+ * 获取管理员路径
+ */
+export async function getAdminPath(env) {
+  const result = await getConfig(env, 'admin_path');
+  return result;
+}
+
+/**
+ * 设置管理员路径
+ */
+export async function setAdminPath(env, path) {
+  await setConfig(env, 'admin_path', path);
+}
+
+// 别名，兼容旧代码
+export const putAdminPath = setAdminPath;
+
+/**
+ * 获取管理员密码哈希
+ */
+export async function getAdminPassword(env) {
+  const result = await getConfig(env, 'admin_password');
+  return result;
+}
+
+/**
+ * 设置管理员密码哈希
+ */
+export async function setAdminPassword(env, hash) {
+  await setConfig(env, 'admin_password', hash);
+}
+
+// 别名，兼容旧代码
+export const putAdminPassword = setAdminPassword;
+
+// ==================== Push 心跳操作 ====================
+
+/**
+ * 更新 Push 心跳（立即写入数据库）
+ */
+export async function updatePushHeartbeat(env, siteId, heartbeatData) {
+  const now = Date.now();
+  
+  await env.DB.prepare(`
+    UPDATE sites SET 
+      status = 'online',
+      last_heartbeat = ?,
+      push_data = ?,
+      response_time = ?
+    WHERE id = ?
+  `).bind(
+    now,
+    JSON.stringify(heartbeatData.pushData),
+    heartbeatData.responseTime || 0,
+    siteId
+  ).run();
+  
+  // 同时添加历史记录
+  await addHistory(env, siteId, {
+    timestamp: now,
+    status: 'online',
+    statusCode: 200,
+    responseTime: heartbeatData.responseTime || 0,
+    message: 'OK'
+  });
+  
+  console.log(`📡 Push 心跳已写入 D1: ${siteId}`);
+}
+
+// ==================== 证书告警操作 ====================
+
+/**
+ * 获取证书告警状态
+ */
+export async function getCertificateAlert(env, siteId) {
+  const row = await env.DB.prepare(
+    'SELECT * FROM certificate_alerts WHERE site_id = ?'
+  ).bind(siteId).first();
+  
+  return row ? {
+    siteId: row.site_id,
+    lastAlertTime: row.last_alert_time,
+    alertType: row.alert_type
+  } : null;
+}
+
+/**
+ * 设置证书告警状态
+ */
+export async function setCertificateAlert(env, siteId, alertTime, alertType) {
+  await env.DB.prepare(`
+    INSERT OR REPLACE INTO certificate_alerts (site_id, last_alert_time, alert_type)
+    VALUES (?, ?, ?)
+  `).bind(siteId, alertTime, alertType).run();
+  await incrementStats(env, 'writes');
+}
+
+// ==================== 数据库初始化 ====================
+
+/**
+ * 初始化数据库表结构
+ */
+export async function initDatabase(env) {
+  // 检查是否已初始化
+  try {
+    const check = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='sites'"
+    ).first();
+    
+    if (check) {
+      return false; // 已初始化
+    }
+  } catch (e) {
+    // 表不存在，继续初始化
+  }
+  
+  console.log('🔧 初始化 D1 数据库...');
+  
+  // 创建表结构
+  await env.DB.batch([
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+      )
+    `),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS sites (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        url TEXT NOT NULL,
+        monitor_type TEXT DEFAULT 'http',
+        status TEXT DEFAULT 'unknown',
+        response_time INTEGER DEFAULT 0,
+        last_check INTEGER DEFAULT 0,
+        group_id TEXT DEFAULT 'default',
+        sort_order INTEGER DEFAULT 0,
+        show_url INTEGER DEFAULT 0,
+        created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+        method TEXT DEFAULT 'GET',
+        expected_status INTEGER DEFAULT 200,
+        timeout INTEGER DEFAULT 30000,
+        headers TEXT,
+        body TEXT,
+        dns_record_type TEXT DEFAULT 'A',
+        dns_expected_value TEXT,
+        tcp_port INTEGER,
+        push_token TEXT,
+        push_interval INTEGER DEFAULT 60,
+        last_heartbeat INTEGER DEFAULT 0,
+        push_data TEXT,
+        show_in_host_panel INTEGER DEFAULT 0,
+        ssl_cert TEXT,
+        ssl_cert_last_check INTEGER DEFAULT 0,
+        last_message TEXT
+      )
+    `),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site_id TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        status_code INTEGER DEFAULT 0,
+        response_time INTEGER DEFAULT 0,
+        message TEXT,
+        created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+      )
+    `),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_site_time ON history(site_id, timestamp DESC)'),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS incidents (
+        id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        site_name TEXT NOT NULL,
+        start_time INTEGER NOT NULL,
+        end_time INTEGER,
+        status TEXT DEFAULT 'ongoing',
+        reason TEXT,
+        resolved_reason TEXT,
+        duration INTEGER,
+        created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+      )
+    `),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_incidents_site ON incidents(site_id)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_incidents_time ON incidents(start_time DESC)'),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS groups (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        sort_order INTEGER DEFAULT 0,
+        created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+      )
+    `),
+    env.DB.prepare("INSERT OR IGNORE INTO groups (id, name, sort_order) VALUES ('default', '默认分类', 0)"),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS stats (
+        date TEXT PRIMARY KEY,
+        writes INTEGER DEFAULT 0,
+        reads INTEGER DEFAULT 0,
+        checks INTEGER DEFAULT 0,
+        created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+      )
+    `),
+    env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS certificate_alerts (
+        site_id TEXT PRIMARY KEY,
+        last_alert_time INTEGER,
+        alert_type TEXT
+      )
+    `)
+  ]);
+  
+  console.log('✅ D1 数据库初始化完成');
+  return true;
+}
+
+// ==================== 兼容性导出（旧 KV 接口） ====================
+
+// 保留旧接口以便渐进迁移
+export async function getMonitorState(env) {
+  // 返回兼容的状态对象
+  const [settings, sites, groups, incidents, stats] = await Promise.all([
+    getSettings(env),
+    getAllSites(env),
+    getAllGroups(env),
+    getAllIncidents(env),
+    getTodayStats(env)
+  ]);
+  
+  return {
+    config: {
+      ...settings,
+      groups
+    },
+    sites,
+    incidents: {},  // 兼容旧格式
+    incidentIndex: incidents.map(i => i.id),
+    stats: {
+      writes: {
+        today: stats.writes,
+        total: stats.writes
+      },
+      checks: {
+        today: stats.checks,
+        total: stats.checks
+      }
+    }
+  };
+}
+
+// ==================== 清除所有数据 ====================
+
+/**
+ * 清除所有数据（危险操作）
+ */
+export async function clearAllData(env) {
+  console.log('⚠️ 清除所有 D1 数据...');
+  
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM history'),
+    env.DB.prepare('DELETE FROM incidents'),
+    env.DB.prepare('DELETE FROM certificate_alerts'),
+    env.DB.prepare('DELETE FROM sites'),
+    env.DB.prepare('DELETE FROM stats'),
+    env.DB.prepare("DELETE FROM groups WHERE id != 'default'"),
+    env.DB.prepare("DELETE FROM config WHERE key NOT IN ('admin_password', 'admin_path')")
+  ]);
+  
+  console.log('✅ 所有数据已清除');
 }
