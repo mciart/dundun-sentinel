@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "cd frontend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
-    "build": "npm run build:frontend",
-    "build:frontend": "cd frontend && npm install && npm run build"
+    "build": "npm run build:frontend && npm run copy:dist",
+    "build:frontend": "cd frontend && npm install && npm run build",
+    "copy:dist": "cp -r frontend/dist ./dist"
   },
   "keywords": [
     "edgeone",
