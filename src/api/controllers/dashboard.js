@@ -26,6 +26,7 @@ export async function getDashboardData(request, env) {
       sslCert: site.sslCert || null,
       sslCertLastCheck: site.sslCertLastCheck || 0,
       sortOrder: site.sortOrder || 0,
+      hostSortOrder: site.hostSortOrder || 0,
       createdAt: site.createdAt || 0,
       monitorType: site.monitorType || 'http',
       lastHeartbeat: site.lastHeartbeat || 0,
@@ -46,7 +47,8 @@ export async function getDashboardData(request, env) {
       settings: {
         siteName: settings.siteName || '炖炖哨兵',
         siteSubtitle: settings.siteSubtitle || '慢慢炖，网站不 "糊锅"',
-        pageTitle: settings.pageTitle || '网站监控'
+        pageTitle: settings.pageTitle || '网站监控',
+        hostDisplayMode: settings.hostDisplayMode || 'card'
       }, 
       incidents 
     });

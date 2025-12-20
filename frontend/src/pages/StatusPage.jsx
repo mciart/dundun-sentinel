@@ -7,7 +7,7 @@ import {
   TrendingUp,
   Gauge
 } from 'lucide-react';
-import { api } from '../utils/api';
+import { api, getToken } from '../utils/api';
 import { 
   formatTimeAgo, 
   formatResponseTime, 
@@ -32,7 +32,8 @@ export default function StatusPage() {
   const [siteSettings, setSiteSettings] = useState({
     siteName: '炖炖哨兵',
     siteSubtitle: '慢慢炖，网站不 "糊锅"',
-    pageTitle: '网站监控'
+    pageTitle: '网站监控',
+    hostDisplayMode: 'card'
   });
   
   const { fetchAllHistory, historyCache } = useHistory();
@@ -58,7 +59,8 @@ export default function StatusPage() {
       const settings = {
         siteName: cfg.siteName || '炖炖哨兵',
         siteSubtitle: cfg.siteSubtitle || '慢慢炖，网站不 "糊锅"',
-        pageTitle: cfg.pageTitle || '网站监控'
+        pageTitle: cfg.pageTitle || '网站监控',
+        hostDisplayMode: cfg.hostDisplayMode || 'card'
       };
       setSiteSettings(settings);
       document.title = `${settings.siteName} - ${settings.pageTitle}`;
@@ -94,7 +96,8 @@ export default function StatusPage() {
       const settings = {
         siteName: data.siteName || '炖炖哨兵',
         siteSubtitle: data.siteSubtitle || '慢慢炖，网站不 "糊锅"',
-        pageTitle: data.pageTitle || '网站监控'
+        pageTitle: data.pageTitle || '网站监控',
+        hostDisplayMode: data.hostDisplayMode || 'card'
       };
       setSiteSettings(settings);
       
@@ -255,7 +258,18 @@ export default function StatusPage() {
         </div>
 
         {/* 主机监控面板 */}
-        <HostMonitorPanel sites={sites} />
+        <HostMonitorPanel 
+          sites={sites} 
+          displayMode={siteSettings.hostDisplayMode}
+          onReorder={getToken() ? async (siteIds) => {
+            try {
+              await api.reorderHosts(siteIds);
+              loadData();
+            } catch (error) {
+              console.error('排序失败:', error);
+            }
+          } : null}
+        />
 
         {/* 站点状态 */}
         {loading ? (

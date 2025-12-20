@@ -143,6 +143,11 @@ export async function handleAPI(request, env, ctx) {
     return await sitesController.reorderSites(request, env);
   }
 
+  // 主机排序（主机面板显示顺序）
+  if (path === '/api/hosts/reorder' && request.method === 'POST') {
+    return await sitesController.reorderHosts(request, env);
+  }
+
   // 手动触发监控
   if (path === '/api/monitor/trigger' && request.method === 'POST') {
     return await monitorController.triggerCheckAsync(request, env, ctx);

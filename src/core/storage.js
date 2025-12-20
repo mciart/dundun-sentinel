@@ -36,8 +36,7 @@ export async function setConfig(env, key, value) {
  * 获取全局设置
  */
 export async function getSettings(env) {
-  const result = await getConfig(env, 'settings');
-  return result || {
+  const defaults = {
     siteName: '炖炖哨兵',
     siteSubtitle: '慢慢炖，网站不"糊锅"',
     pageTitle: '网站监控',
@@ -45,6 +44,7 @@ export async function getSettings(env) {
     retentionHours: 720,
     checkInterval: 10,
     statusChangeDebounceMinutes: 3,
+    hostDisplayMode: 'card',
     notifications: {
       enabled: false,
       events: ['down', 'recovered', 'cert_warning'],
@@ -54,6 +54,12 @@ export async function getSettings(env) {
       }
     }
   };
+  
+  const result = await getConfig(env, 'settings');
+  if (!result) return defaults;
+  
+  // 合并默认值，确保新增字段有默认值
+  return { ...defaults, ...result };
 }
 
 /**
@@ -83,6 +89,7 @@ export async function getAllSites(env) {
     lastCheck: row.last_check,
     groupId: row.group_id,
     sortOrder: row.sort_order,
+    hostSortOrder: row.host_sort_order || 0,
     showUrl: !!row.show_url,
     createdAt: row.created_at,
     // HTTP
@@ -131,6 +138,7 @@ export async function getSite(env, siteId) {
     lastCheck: row.last_check,
     groupId: row.group_id,
     sortOrder: row.sort_order,
+    hostSortOrder: row.host_sort_order || 0,
     showUrl: !!row.show_url,
     createdAt: row.created_at,
     method: row.method,
@@ -214,7 +222,7 @@ export async function updateSite(env, siteId, updates) {
   await env.DB.prepare(`
     UPDATE sites SET
       name = ?, url = ?, monitor_type = ?, status = ?, response_time = ?, last_check = ?,
-      group_id = ?, sort_order = ?, show_url = ?,
+      group_id = ?, sort_order = ?, host_sort_order = ?, show_url = ?,
       method = ?, expected_status = ?, timeout = ?, headers = ?, body = ?,
       dns_record_type = ?, dns_expected_value = ?,
       tcp_host = ?, tcp_port = ?,
@@ -230,6 +238,7 @@ export async function updateSite(env, siteId, updates) {
     merged.lastCheck,
     merged.groupId,
     merged.sortOrder,
+    merged.hostSortOrder || 0,
     merged.showUrl ? 1 : 0,
     merged.method,
     merged.expectedStatus,
@@ -803,6 +812,7 @@ export async function initDatabase(env) {
         last_check INTEGER DEFAULT 0,
         group_id TEXT DEFAULT 'default',
         sort_order INTEGER DEFAULT 0,
+        host_sort_order INTEGER DEFAULT 0,
         show_url INTEGER DEFAULT 0,
         created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
         method TEXT DEFAULT 'GET',
@@ -922,6 +932,12 @@ async function runMigrations(env) {
   if (!sitesCols.has('tcp_host')) {
     migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN tcp_host TEXT'));
     console.log('  + 添加 sites.tcp_host 列');
+  }
+  
+  // 检查 host_sort_order 列（主机面板排序）
+  if (!sitesCols.has('host_sort_order')) {
+    migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN host_sort_order INTEGER DEFAULT 0'));
+    console.log('  + 添加 sites.host_sort_order 列');
   }
   
   // 检查 incidents 表缺失的列

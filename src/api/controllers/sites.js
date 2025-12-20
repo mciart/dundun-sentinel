@@ -183,6 +183,24 @@ export async function reorderSites(request, env) {
   }
 }
 
+export async function reorderHosts(request, env) {
+  try {
+    const { siteIds } = await request.json();
+    if (!Array.isArray(siteIds) || siteIds.length === 0) {
+      return errorResponse('无效的主机ID列表', 400);
+    }
+    
+    // 批量更新主机面板排序
+    for (let i = 0; i < siteIds.length; i++) {
+      await db.updateSite(env, siteIds[i], { hostSortOrder: i });
+    }
+    
+    return jsonResponse({ success: true, message: '主机排序已更新' });
+  } catch (error) {
+    return errorResponse('更新主机排序失败: ' + error.message, 500);
+  }
+}
+
 export async function getHistory(request, env, siteId) {
   try {
     const settings = await db.getSettings(env);

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS sites (
   last_check INTEGER DEFAULT 0,
   group_id TEXT DEFAULT 'default',
   sort_order INTEGER DEFAULT 0,
+  host_sort_order INTEGER DEFAULT 0,
   show_url INTEGER DEFAULT 0,
   created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
   

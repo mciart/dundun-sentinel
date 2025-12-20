@@ -22,7 +22,10 @@ import {
   Link,
   KeyRound,
   Settings2,
-  Route
+  Route,
+  LayoutGrid,
+  LayoutList,
+  Monitor
 } from 'lucide-react';
 import { api, clearToken, getToken } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
@@ -51,7 +54,8 @@ export default function AdminPage() {
   const [websiteSettings, setWebsiteSettings] = useState({
     siteName: '炖炖哨兵',
     siteSubtitle: '慢慢炖，网站不 "糊锅"',
-    pageTitle: '网站监控'
+    pageTitle: '网站监控',
+    hostDisplayMode: 'card' // 'card' | 'list'
   });
   const [saving, setSaving] = useState(false);
   const [savingWebsite, setSavingWebsite] = useState(false);
@@ -144,7 +148,8 @@ export default function AdminPage() {
           setWebsiteSettings({
             siteName: apiSettings.siteName || '炖炖哨兵',
             siteSubtitle: apiSettings.siteSubtitle || '慢慢炖，网站不 "糊锅"',
-            pageTitle: apiSettings.pageTitle || '网站监控'
+            pageTitle: apiSettings.pageTitle || '网站监控',
+            hostDisplayMode: apiSettings.hostDisplayMode || 'card'
           });
           localStorage.setItem('monitorSettings', JSON.stringify(apiSettings));
         } catch (error) {
@@ -210,10 +215,12 @@ export default function AdminPage() {
         ...currentSettings,
         siteName: websiteSettings.siteName,
         siteSubtitle: websiteSettings.siteSubtitle,
-        pageTitle: websiteSettings.pageTitle
+        pageTitle: websiteSettings.pageTitle,
+        hostDisplayMode: websiteSettings.hostDisplayMode
       };
 
       await api.updateSettings(updatedSettings);
+      localStorage.setItem('monitorSettings', JSON.stringify(updatedSettings));
       showSuccess('网站设置已保存！');
     } catch (error) {
       console.error('保存网站设置失败:', error);
@@ -717,6 +724,86 @@ export default function AdminPage() {
                   className="w-full max-w-xs px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-slate-400 dark:focus:border-slate-500"
                   placeholder="例如：网站监控"
                 />
+              </div>
+            </div>
+
+            {/* 主机监控显示模式 */}
+            <div className="glass-card p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/20">
+                  <Monitor className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    主机监控显示模式
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    设置主机监控面板的显示样式，可选卡片模式或列表模式
+                  </p>
+                </div>
+              </div>
+
+              <div className="ml-12">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                  显示模式
+                </label>
+                <div className="flex gap-4">
+                  <label 
+                    className={`
+                      flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-all
+                      ${websiteSettings.hostDisplayMode === 'card' 
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}
+                    `}
+                  >
+                    <input
+                      type="radio"
+                      name="hostDisplayMode"
+                      value="card"
+                      checked={websiteSettings.hostDisplayMode === 'card'}
+                      onChange={(e) => setWebsiteSettings({ ...websiteSettings, hostDisplayMode: e.target.value })}
+                      className="sr-only"
+                    />
+                    <LayoutGrid className={`w-5 h-5 ${websiteSettings.hostDisplayMode === 'card' ? 'text-primary-600 dark:text-primary-400' : 'text-slate-500'}`} />
+                    <div>
+                      <p className={`font-medium ${websiteSettings.hostDisplayMode === 'card' ? 'text-primary-700 dark:text-primary-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                        卡片模式
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        网格布局，显示详细指标
+                      </p>
+                    </div>
+                  </label>
+                  <label 
+                    className={`
+                      flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-pointer transition-all
+                      ${websiteSettings.hostDisplayMode === 'list' 
+                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}
+                    `}
+                  >
+                    <input
+                      type="radio"
+                      name="hostDisplayMode"
+                      value="list"
+                      checked={websiteSettings.hostDisplayMode === 'list'}
+                      onChange={(e) => setWebsiteSettings({ ...websiteSettings, hostDisplayMode: e.target.value })}
+                      className="sr-only"
+                    />
+                    <LayoutList className={`w-5 h-5 ${websiteSettings.hostDisplayMode === 'list' ? 'text-primary-600 dark:text-primary-400' : 'text-slate-500'}`} />
+                    <div>
+                      <p className={`font-medium ${websiteSettings.hostDisplayMode === 'list' ? 'text-primary-700 dark:text-primary-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                        列表模式
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        紧凑列表，支持拖拽排序
+                      </p>
+                    </div>
+                  </label>
+                </div>
+                <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                  列表模式支持拖拽调整主机显示顺序
+                </p>
               </div>
             </div>
 
