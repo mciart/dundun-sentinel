@@ -71,8 +71,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Setup KV Namespace
-        id: kv_setup
+      - name: Setup D1 Database
+        id: d1_setup
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
@@ -89,81 +89,77 @@ jobs:
           echo "获取到 Account ID: $CLOUDFLARE_ACCOUNT_ID"
           echo "account_id=$CLOUDFLARE_ACCOUNT_ID" >> $GITHUB_OUTPUT
           
-          KV_ID="${{ secrets.KV_NAMESPACE_ID }}"
+          # 检查是否已存在同名 D1 数据库
+          echo "检查 D1 数据库..."
+          EXISTING_DB=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" | jq -r '.result[] | select(.name=="dundun-sentinel-db") | .uuid')
           
-          # 如果没有提供 KV_NAMESPACE_ID，自动创建
-          if [ -z "$KV_ID" ] || [ "$KV_ID" = "" ]; then
-            echo "KV_NAMESPACE_ID 未设置，正在自动创建..."
-            
-            # 检查是否已存在同名 KV
-            EXISTING=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces?per_page=100" \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: application/json" | jq -r '.result[] | select(.title=="dundun-sentinel-MONITOR_DATA") | .id')
-            
-            if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
-              echo "找到已存在的 KV 命名空间: $EXISTING"
-              KV_ID="$EXISTING"
-            else
-              # 创建新的 KV 命名空间
-              RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces" \
-                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-                -H "Content-Type: application/json" \
-                --data '{"title":"dundun-sentinel-MONITOR_DATA"}')
-              
-              KV_ID=$(echo $RESPONSE | jq -r '.result.id')
-              
-              if [ -z "$KV_ID" ] || [ "$KV_ID" = "null" ]; then
-                echo "创建 KV 命名空间失败: $RESPONSE"
-                exit 1
-              fi
-              
-              echo "成功创建 KV 命名空间: $KV_ID"
-            fi
+          if [ -n "$EXISTING_DB" ] && [ "$EXISTING_DB" != "null" ]; then
+            echo "找到已存在的 D1 数据库: $EXISTING_DB"
+            D1_ID="$EXISTING_DB"
           else
-            echo "使用已配置的 KV_NAMESPACE_ID: $KV_ID"
+            echo "D1 数据库不存在，正在创建..."
+            # 创建新的 D1 数据库
+            RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              --data '{"name":"dundun-sentinel-db"}')
+            
+            D1_ID=$(echo $RESPONSE | jq -r '.result.uuid')
+            
+            if [ -z "$D1_ID" ] || [ "$D1_ID" = "null" ]; then
+              echo "创建 D1 数据库失败: $RESPONSE"
+              exit 1
+            fi
+            
+            echo "成功创建 D1 数据库: $D1_ID"
           fi
           
-          echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
+          echo "d1_id=$D1_ID" >> $GITHUB_OUTPUT
 
-      - name: Update KV Namespace ID
+      - name: Update D1 Database ID in wrangler.toml
         run: |
-          sed -i 's/YOUR_KV_NAMESPACE_ID/${{ steps.kv_setup.outputs.kv_id }}/g' wrangler.toml
+          sed -i 's/database_id = ".*"/database_id = "${{ steps.d1_setup.outputs.d1_id }}"/g' wrangler.toml
+          cat wrangler.toml
+
+      - name: Initialize D1 Schema
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ steps.d1_setup.outputs.account_id }}
+          D1_ID: ${{ steps.d1_setup.outputs.d1_id }}
+        run: |
+          echo "初始化 D1 数据库 schema..."
+          # 检查是否已有表
+          CHECK_RESULT=$(curl -s -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/d1/database/$D1_ID/query" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{"sql":"SELECT name FROM sqlite_master WHERE type=\"table\" AND name=\"sites\""}')
+          
+          TABLE_EXISTS=$(echo $CHECK_RESULT | jq -r '.result[0].results | length')
+          
+          if [ "$TABLE_EXISTS" = "0" ] || [ "$TABLE_EXISTS" = "null" ]; then
+            echo "数据库表不存在，执行 schema 初始化..."
+            npx wrangler d1 execute dundun-sentinel-db --file=./schema.sql --remote
+          else
+            echo "数据库表已存在，跳过 schema 初始化"
+          fi
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ steps.kv_setup.outputs.account_id }}
+          accountId: ${{ steps.d1_setup.outputs.account_id }}
 
-      - name: Configure Admin Settings
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ steps.kv_setup.outputs.account_id }}
-          KV_ID: ${{ steps.kv_setup.outputs.kv_id }}
-          ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      - name: Deployment Success
         run: |
-          # 设置自定义后台路径
-          if [ -n "$ADMIN_PATH" ] && [ "$ADMIN_PATH" != "" ]; then
-            echo "设置自定义后台路径: $ADMIN_PATH"
-            curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces/$KV_ID/values/admin_path" \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: text/plain" \
-              --data "$ADMIN_PATH"
-          fi
-          
-          # 设置自定义密码（使用 SHA-256 哈希存储）
-          if [ -n "$ADMIN_PASSWORD" ] && [ "$ADMIN_PASSWORD" != "" ]; then
-            echo "设置自定义后台密码（哈希存储）"
-            # 计算密码的 SHA-256 哈希
-            PASSWORD_HASH=$(echo -n "$ADMIN_PASSWORD" | sha256sum | cut -d' ' -f1)
-            curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces/$KV_ID/values/admin_password" \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: text/plain" \
-              --data "$PASSWORD_HASH"
-          fi
-          
-          echo "管理员配置完成"
+          echo "✅ 部署成功！"
+          echo ""
+          echo "📝 后续步骤："
+          echo "1. 访问你的 Worker URL"
+          echo "2. 默认后台路径: /admin"
+          echo "3. 默认密码: admin"
+          echo "4. 请立即登录后台修改默认密码！"
 
   # PR 预览部署（可选）
   preview:
@@ -190,12 +186,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup KV Namespace (Preview)
-        id: kv_setup_preview
+      - name: Get Account ID
+        id: account_setup
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          # 自动获取 Account ID
           CLOUDFLARE_ACCOUNT_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts?per_page=1" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Content-Type: application/json" | jq -r '.result[0].id')
@@ -206,32 +201,10 @@ jobs:
           fi
           
           echo "account_id=$CLOUDFLARE_ACCOUNT_ID" >> $GITHUB_OUTPUT
-          
-          KV_ID="${{ secrets.KV_NAMESPACE_ID }}"
-          
-          if [ -z "$KV_ID" ] || [ "$KV_ID" = "" ]; then
-            # 检查是否已存在同名 KV
-            EXISTING=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces?per_page=100" \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: application/json" | jq -r '.result[] | select(.title=="dundun-sentinel-MONITOR_DATA") | .id')
-            
-            if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
-              KV_ID="$EXISTING"
-            else
-              # 预览模式不创建，使用占位符
-              KV_ID="preview-placeholder"
-            fi
-          fi
-          
-          echo "kv_id=$KV_ID" >> $GITHUB_OUTPUT
 
-      - name: Update KV Namespace ID
-        run: |
-          sed -i 's/YOUR_KV_NAMESPACE_ID/${{ steps.kv_setup_preview.outputs.kv_id }}/g' wrangler.toml
-
-      - name: Deploy Preview
+      - name: Deploy Preview (Dry Run)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ steps.kv_setup_preview.outputs.account_id }}
+          accountId: ${{ steps.account_setup.outputs.account_id }}
           command: deploy --dry-run
