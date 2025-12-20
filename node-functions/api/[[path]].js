@@ -6,25 +6,30 @@ import { handleAPI } from '../../src/api.js';
 // 创建兼容的环境对象
 function createEnv(context) {
   // 1. 优先尝试 context.env 中的绑定 (标准方式)
-  let redisUrl = context.env?.REDIS_URL;
+  let upstashUrl = context.env?.UPSTASH_REDIS_REST_URL;
+  let upstashToken = context.env?.UPSTASH_REDIS_REST_TOKEN;
   
   // 2. 如果没有，尝试 process.env (Node.js 兼容方式)
-  if (!redisUrl && process.env && process.env.REDIS_URL) {
-    redisUrl = process.env.REDIS_URL;
+  if (!upstashUrl && process.env && process.env.UPSTASH_REDIS_REST_URL) {
+    upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+  }
+  if (!upstashToken && process.env && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
   }
   
-  // 3. 调试日志：部署后查看函数日志可确认 Redis 是否配置成功
-  if (!redisUrl) {
-    console.error('❌ CRITICAL ERROR: REDIS_URL is missing!');
+  // 3. 调试日志：部署后查看函数日志可确认 Upstash 是否配置成功
+  if (!upstashUrl || !upstashToken) {
+    console.error('❌ CRITICAL ERROR: UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN is missing!');
     console.log('Available context keys:', Object.keys(context.env || {}));
     console.log('Available process keys:', Object.keys(process.env || {}).filter(k => !k.includes('PATH')).slice(0, 20));
   } else {
-    console.log('✅ REDIS_URL configured successfully');
+    console.log('✅ Upstash Redis configured successfully');
   }
 
   return {
     ENVIRONMENT: process.env.NODE_ENV || 'production',
-    REDIS_URL: redisUrl,
+    UPSTASH_REDIS_REST_URL: upstashUrl,
+    UPSTASH_REDIS_REST_TOKEN: upstashToken,
     // 透传其他环境变量
     ...context.env
   };

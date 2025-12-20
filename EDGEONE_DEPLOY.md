@@ -33,24 +33,28 @@
 
 ---
 
-### 3️⃣ 创建 Redis 数据库
+### 3️⃣ 创建 Upstash Redis 数据库
 
-使用 Redis Cloud 免费方案（30MB 永久免费）：
+使用 Upstash Redis 免费方案（最适合 Serverless，无连接数限制）：
 
-1. 访问 [Redis Cloud (Redis Labs)](https://app.redislabs.com/)
+1. 访问 [Upstash Console](https://console.upstash.com/)
 2. 注册并登录账号
-3. 点击 **New Subscription**
-4. 选择 **Free** 方案（30MB，永久免费）
-5. 选择云服务商和区域（建议选择离你用户近的区域）
-6. 创建数据库后，获取连接信息：
-   - **Public Endpoint**：例如 `redis-12345.c1.us-east-1-2.ec2.cloud.redislabs.com:12345`
-   - **Default User Password**：你的数据库密码
-7. 组合成连接字符串：
-   - 格式：`redis://:<密码>@<地址>:<端口>`
-   - 例如：`redis://:AbCdEfG12345@redis-12345.c1.us-east-1-2.ec2.cloud.redislabs.com:12345`
-   - 如果使用 SSL：`rediss://:密码@地址:端口`
+3. 点击 **Create Database**
+4. 选择配置：
+   - Name：`dundun-sentinel`
+   - Type：选择 **Regional**（推荐）或 Global
+   - Region：选择离你用户近的区域
+   - TLS：启用（推荐）
+5. 创建后，进入数据库详情页
+6. 找到 **REST API** 部分，复制：
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
 
-> 💡 **提示**：保存好你的连接字符串，下一步会用到
+> 💡 **为什么选择 Upstash？**
+> - ✅ 基于 HTTP REST API，无连接数限制
+> - ✅ 完美适配 Serverless 环境
+> - ✅ 每天 10,000 次请求免费
+> - ✅ 自动处理 JSON 序列化
 
 ---
 
@@ -70,10 +74,13 @@
 #### 配置环境变量
 
 1. 在项目设置中，找到 **环境变量**
-2. 添加 Redis 连接：
-   - 变量名：`REDIS_URL`
-   - 值：你的 Redis 连接字符串（从上一步获取）
-3. 保存并重新部署
+2. 添加 Upstash Redis 配置：
+   - 变量名：`UPSTASH_REDIS_REST_URL`
+   - 值：从 Upstash 控制台复制的 URL
+3. 添加第二个变量：
+   - 变量名：`UPSTASH_REDIS_REST_TOKEN`
+   - 值：从 Upstash 控制台复制的 Token
+4. 保存并重新部署
 
 ---
 
@@ -113,10 +120,11 @@
 
 在 EdgeOne Pages 项目设置中添加环境变量：
 
-| 变量名 | 说明 | 必需 | 示例 |
-|--------|------|------|------|
-| `REDIS_URL` | Redis 连接字符串 | ✅ 是 | `redis://:password@host:port` |
-| `NODE_ENV` | 运行环境 | ❌ 否 | `production` |
+| 变量名 | 说明 | 必需 | 获取位置 |
+|--------|------|------|----------|
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST API URL | ✅ 是 | Upstash 控制台 → REST API |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST API Token | ✅ 是 | Upstash 控制台 → REST API |
+| `NODE_ENV` | 运行环境 | ❌ 否 | 手动设置为 `production` |
 
 ---
 

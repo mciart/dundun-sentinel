@@ -297,7 +297,7 @@ EdgeOne 边缘函数有一定的免费额度，具体请参考 [EdgeOne 计费�
 |------|------|
 | 前端 | React + Vite + TailwindCSS |
 | 后端 | EdgeOne Node Functions (完整 Node.js 环境) |
-| 数据库 | Redis Cloud (30MB 永久免费) |
+| 数据库 | Upstash Redis (HTTP REST API，无连接数限制) |
 | 部署 | 腾讯云 EdgeOne Pages |
 | 监控 | 原生 net 模块 (TCP)、fetch (HTTP)、DoH (DNS) |
 

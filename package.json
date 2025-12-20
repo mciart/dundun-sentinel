@@ -23,7 +23,7 @@
   "author": "人生大乱炖",
   "license": "MIT",
   "dependencies": {
-    "ioredis": "^5.8.2",
+    "@upstash/redis": "^1.35.8",
     "vite": "^7.3.0"
   }
 }
