@@ -1,28 +1,6 @@
 {
-  "name": "dundun-sentinel",
+  "name": "dundun_sentinel",
   "version": "1.0.0",
-  "routes": [
-    {
-      "path": "/api/*",
-      "function": "api"
-    },
-    {
-      "path": "/*",
-      "static": true
-    }
-  ],
-  "triggers": [
-    {
-      "name": "monitor-cron",
-      "cron": "*/15 * * * *",
-      "function": "cron-monitor"
-    },
-    {
-      "name": "cert-check-cron",
-      "cron": "0 4 * * *",
-      "function": "cron-cert-check"
-    }
-  ],
   "build": {
     "command": "cd frontend && npm install && npm run build",
     "output": "frontend/dist"

@@ -259,7 +259,7 @@ npm run dev
 
 ```
 dundun-sentinel/
-├── functions/                     # EdgeOne Edge Functions
+├── edge-functions/                # EdgeOne Edge Functions
 │   ├── api.js                     # API 路由入口
 │   ├── cron-monitor.js            # 定时监控任务（每15分钟）
 │   └── cron-cert-check.js         # SSL证书检测（每天凌晨4点）

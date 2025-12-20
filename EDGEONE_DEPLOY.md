@@ -31,7 +31,7 @@
 1. 进入你的站点管理页面
 2. 点击左侧菜单 **边缘函数** → **KV 存储**
 3. 点击 **创建命名空间**
-4. 命名空间名称：`dundun-sentinel-kv`
+4. 命名空间名称：`dundun_sentinel_kv`（⚠️ 只支持字母、数字和下划线）
 5. 点击 **确定** 创建
 6. 记录命名空间 ID（后续绑定需要）
 
@@ -43,8 +43,8 @@
 
 1. 进入 **边缘函数** → **函数管理**
 2. 点击 **新建函数**
-3. 函数名称：`dundun-sentinel-api`
-4. 将 `functions/api.js` 和 `src/` 目录的代码上传或粘贴
+3. 函数名称：`dundun_sentinel_api`
+4. 将 `edge-functions/api.js` 和 `src/` 目录的代码上传或粘贴
 5. 在 **KV 绑定** 中，添加绑定：
    - 变量名：`MONITOR_DATA`
    - 选择刚创建的 KV 命名空间
@@ -52,15 +52,15 @@
 
 #### 4.2 创建监控 Cron 函数
 
-1. 新建函数：`dundun-sentinel-cron-monitor`
-2. 上传 `functions/cron-monitor.js` 代码
+1. 新建函数：`dundun_sentinel_cron_monitor`
+2. 上传 `edge-functions/cron-monitor.js` 代码
 3. 绑定相同的 KV 命名空间
 4. 保存函数
 
 #### 4.3 创建证书检测 Cron 函数
 
-1. 新建函数：`dundun-sentinel-cron-cert-check`
-2. 上传 `functions/cron-cert-check.js` 代码
+1. 新建函数：`dundun_sentinel_cron_cert_check`
+2. 上传 `edge-functions/cron-cert-check.js` 代码
 3. 绑定相同的 KV 命名空间
 4. 保存函数
 
@@ -73,26 +73,26 @@
 1. 进入 **边缘函数** → **触发规则**
 2. 点击 **新建规则**
 3. 配置：
-   - 规则名称：`api-route`
+   - 规则名称：`api_route`
    - 触发条件：URL 路径匹配 `/api/*`
-   - 执行函数：`dundun-sentinel-api`
+   - 执行函数：`dundun_sentinel_api`
 4. 保存规则
 
 #### 5.2 配置定时触发器
 
 1. 点击 **新建规则**
 2. 配置监控定时任务：
-   - 规则名称：`monitor-cron`
+   - 规则名称：`monitor_cron`
    - 触发类型：**定时触发**
    - Cron 表达式：`*/15 * * * *`（每15分钟）
-   - 执行函数：`dundun-sentinel-cron-monitor`
+   - 执行函数：`dundun_sentinel_cron_monitor`
 3. 保存
 
 4. 再新建一个规则，配置证书检测定时任务：
-   - 规则名称：`cert-check-cron`
+   - 规则名称：`cert_check_cron`
    - 触发类型：**定时触发**
    - Cron 表达式：`0 4 * * *`（每天凌晨4点）
-   - 执行函数：`dundun-sentinel-cron-cert-check`
+   - 执行函数：`dundun_sentinel_cron_cert_check`
 5. 保存
 
 ---
