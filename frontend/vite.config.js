@@ -8,6 +8,9 @@ export default defineConfig({
     open: true,
     proxy: {
       '/api': {
+        // 本地开发时，可以指向已部署的 EdgeOne 地址
+        // 例如：target: 'https://你的域名.com'
+        // 或者启动本地 API 服务器
         target: 'http://localhost:8787',
         changeOrigin: true,
       }

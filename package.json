@@ -1,27 +1,25 @@
 {
   "name": "dundun-sentinel",
   "version": "2.0.0",
-  "description": "炖炖哨兵 - 轻量级网站监控系统（基于 Vercel）",
+  "description": "炖炖哨兵 - 轻量级网站监控系统（基于 EdgeOne）",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev",
+    "dev": "cd frontend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "npm run build:frontend",
-    "build:frontend": "cd frontend && npm install && npm run build",
-    "deploy": "npm run build && vercel --prod"
+    "build:frontend": "cd frontend && npm install && npm run build"
   },
   "keywords": [
-    "vercel",
+    "edgeone",
+    "tencent",
     "monitoring",
     "uptime",
-    "serverless"
+    "serverless",
+    "edge-functions"
   ],
   "author": "人生大乱炖",
   "license": "MIT",
   "dependencies": {
-    "@vercel/kv": "^2.0.0"
-  },
-  "devDependencies": {
-    "vercel": "^39.0.0"
+    "vite": "^7.3.0"
   }
 }
