@@ -223,15 +223,16 @@ async function sendViaSMTP(emailCfg, from, subject, html) {
       ? { secureTransport: 'starttls' } 
       : {};
   
-  const socket = connect({
+  let socket = connect({
     hostname: smtpHost,
     port: smtpPort
   }, socketOptions);
   
-  const writer = socket.writable.getWriter();
-  const reader = socket.readable.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
+  
+  let writer = socket.writable.getWriter();
+  let reader = socket.readable.getReader();
   
   // 读取响应
   async function readResponse() {
@@ -260,8 +261,18 @@ async function sendViaSMTP(emailCfg, from, subject, html) {
     // STARTTLS（如果配置为 starttls 且服务器支持）
     if (useSTARTTLS && response.includes('STARTTLS')) {
       await sendCommand('STARTTLS');
-      // 升级到 TLS
-      await socket.startTls();
+      
+      // 释放旧的 reader/writer
+      writer.releaseLock();
+      reader.releaseLock();
+      
+      // 升级到 TLS - 返回新的加密 socket
+      socket = await socket.startTls();
+      
+      // 获取新的 reader/writer
+      writer = socket.writable.getWriter();
+      reader = socket.readable.getReader();
+      
       response = await sendCommand(`EHLO localhost`);
     }
     
