@@ -198,21 +198,25 @@ async function sendViaResend(apiKey, to, from, subject, html) {
  * 通过 SMTP 发送邮件（使用 Cloudflare Sockets）
  */
 async function sendViaSMTP(emailCfg, from, subject, html) {
-  const { smtpHost, smtpPort = 587, smtpUser, smtpPass, to } = emailCfg;
+  const { smtpHost, smtpPort = 587, smtpUser, smtpPass, smtpSecure = 'starttls', to } = emailCfg;
   
   if (!smtpHost || !smtpUser || !smtpPass) {
     throw new Error('SMTP 配置不完整');
   }
   
-  // 使用 TLS 端口（465）或 STARTTLS 端口（587）
-  const useTLS = smtpPort === 465;
+  // 根据加密方式决定连接方式
+  // ssl: 直接 TLS 连接 (465)
+  // starttls: 先明文连接再升级 (587)
+  // none: 明文连接
+  const useDirectTLS = smtpSecure === 'ssl';
+  const useSTARTTLS = smtpSecure === 'starttls';
   
-  console.log(`📧 连接 SMTP 服务器: ${smtpHost}:${smtpPort}`);
+  console.log(`📧 连接 SMTP 服务器: ${smtpHost}:${smtpPort} (加密: ${smtpSecure})`);
   
   const socket = connect({
     hostname: smtpHost,
     port: smtpPort
-  }, useTLS ? { secureTransport: 'on' } : {});
+  }, useDirectTLS ? { secureTransport: 'on' } : {});
   
   const writer = socket.writable.getWriter();
   const reader = socket.readable.getReader();
@@ -243,12 +247,12 @@ async function sendViaSMTP(emailCfg, from, subject, html) {
     // EHLO
     let response = await sendCommand(`EHLO localhost`);
     
-    // STARTTLS（如果不是 TLS 端口）
-    if (!useTLS && response.includes('STARTTLS')) {
+    // STARTTLS（如果配置为 starttls 且服务器支持）
+    if (useSTARTTLS && response.includes('STARTTLS')) {
       await sendCommand('STARTTLS');
       // 升级到 TLS
       await socket.startTls();
-      await sendCommand(`EHLO localhost`);
+      response = await sendCommand(`EHLO localhost`);
     }
     
     // 认证

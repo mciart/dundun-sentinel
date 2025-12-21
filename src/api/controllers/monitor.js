@@ -78,12 +78,14 @@ export async function testNotification(request, env) {
       certValidTo: type === 'cert_warning' ? realCertValidTo : undefined
     };
     
-    await sendNotifications(env, incident, site, settings.notifications);
+    // 第四个参数 true 表示返回发送结果
+    const sendResult = await sendNotifications(env, incident, site, settings.notifications, true);
     
     return jsonResponse({
       success: true,
       message: '测试通知已发送',
-      site: { id: site.id, name: site.name }
+      site: { id: site.id, name: site.name },
+      results: sendResult?.results || {}
     });
     
   } catch (error) {

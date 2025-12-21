@@ -75,7 +75,7 @@ export default function AdminPage() {
     enabled: false,
     events: ['down', 'recovered', 'cert_warning'],
     channels: {
-      email: { enabled: false, to: '', from: '', emailType: 'resend' },
+      email: { enabled: false, to: '', from: '', emailType: 'smtp', smtpSecure: 'starttls' },
       wecom: { enabled: false, webhook: '' }
     }
   };
@@ -1088,12 +1088,12 @@ export default function AdminPage() {
                     </label>
                     {/* 邮件类型选择 */}
                     <select
-                      value={settings.notifications?.channels?.email?.emailType || 'resend'}
+                      value={settings.notifications?.channels?.email?.emailType || 'smtp'}
                       onChange={(e) => setNotif(n => { n.channels.email.emailType = e.target.value; })}
                       className="px-3 py-1 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
                     >
-                      <option value="resend">Resend API</option>
                       <option value="smtp">SMTP</option>
+                      <option value="resend">Resend API</option>
                     </select>
                   </div>
                   
@@ -1155,6 +1155,15 @@ export default function AdminPage() {
                           value={settings.notifications?.channels?.email?.smtpPort || 587}
                           onChange={(e) => setNotif(n => { n.channels.email.smtpPort = parseInt(e.target.value) || 587; })}
                         />
+                        <select
+                          value={settings.notifications?.channels?.email?.smtpSecure || 'starttls'}
+                          onChange={(e) => setNotif(n => { n.channels.email.smtpSecure = e.target.value; })}
+                          className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                        >
+                          <option value="none">无加密</option>
+                          <option value="starttls">STARTTLS</option>
+                          <option value="ssl">SSL/TLS</option>
+                        </select>
                       </div>
                       <div className="flex flex-col sm:flex-row gap-3">
                         <input
@@ -1189,7 +1198,7 @@ export default function AdminPage() {
                         />
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        常用端口: 465 (SSL/TLS) 或 587 (STARTTLS)。QQ邮箱需使用授权码而非密码。
+                        常用端口: 465 (SSL/TLS) 或 587 (STARTTLS)。iCloud 使用 smtp.mail.me.com:587 STARTTLS。QQ邮箱需使用授权码而非密码。
                       </p>
                     </div>
                   )}
@@ -1245,8 +1254,28 @@ export default function AdminPage() {
                         }
                         setSendingTest(true);
                         try {
-                          await api.testNotification(testNotifType, testNotifSite || undefined);
-                          showSuccess('测试通知已发送，请检查企业微信/邮箱');
+                          const result = await api.testNotification(testNotifType, testNotifSite || undefined);
+                          if (result.results) {
+                            const msgs = [];
+                            if (result.results.email) {
+                              msgs.push(`邮件: ${result.results.email.success ? '✓ 发送成功' : '✗ ' + result.results.email.error}`);
+                            }
+                            if (result.results.wecom) {
+                              msgs.push(`企微: ${result.results.wecom.success ? '✓ 发送成功' : '✗ ' + result.results.wecom.error}`);
+                            }
+                            if (msgs.length > 0) {
+                              const allSuccess = Object.values(result.results).every(r => r.success);
+                              if (allSuccess) {
+                                showSuccess(msgs.join('\n'));
+                              } else {
+                                showError(msgs.join('\n'));
+                              }
+                            } else {
+                              showAlert('未配置任何通知渠道');
+                            }
+                          } else {
+                            showSuccess('测试通知已发送');
+                          }
                         } catch (error) {
                           showError(error.message || '发送失败');
                         } finally {
