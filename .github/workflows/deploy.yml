@@ -78,14 +78,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          echo "🔄 执行数据库迁移..."
-          # 添加新列（如果已存在会报错但不影响部署）
-          npx wrangler d1 execute dundun-sentinel-db --command "ALTER TABLE sites ADD COLUMN tcp_host TEXT;" --remote --yes 2>/dev/null || true
-          npx wrangler d1 execute dundun-sentinel-db --command "ALTER TABLE incidents ADD COLUMN type TEXT DEFAULT 'down';" --remote --yes 2>/dev/null || true
-          # 创建 Push 历史表（如果不存在）
-          npx wrangler d1 execute dundun-sentinel-db --command "CREATE TABLE IF NOT EXISTS push_history (id INTEGER PRIMARY KEY AUTOINCREMENT, site_id TEXT NOT NULL, timestamp INTEGER NOT NULL, cpu REAL, memory REAL, disk REAL, load REAL, temperature REAL, latency INTEGER, uptime INTEGER, custom TEXT, created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000), FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE);" --remote --yes 2>/dev/null || true
-          npx wrangler d1 execute dundun-sentinel-db --command "CREATE INDEX IF NOT EXISTS idx_push_history_site_time ON push_history(site_id, timestamp DESC);" --remote --yes 2>/dev/null || true
-          echo "✅ 迁移检查完成"
+          echo "🔄 执行自动数据库迁移..."
+          node scripts/migrate.js
+          echo "✅ 迁移完成"
 
       - name: Deploy to Cloudflare Workers
         env:

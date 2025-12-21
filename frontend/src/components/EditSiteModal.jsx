@@ -11,7 +11,7 @@ export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) 
     url: site.url,
     groupId: site.groupId || 'default',
     showUrl: site.showUrl || false,
-    notifyEnabled: site.notifyEnabled !== false,  // 默认为 true
+    notifyEnabled: !!site.notifyEnabled,  // 从站点数据读取，默认为 false
     // 监控类型
     monitorType: site.monitorType || 'http',
     // HTTP 相关

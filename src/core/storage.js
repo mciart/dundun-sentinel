@@ -113,6 +113,8 @@ export async function getAllSites(env) {
     // SSL
     sslCert: row.ssl_cert ? JSON.parse(row.ssl_cert) : null,
     sslCertLastCheck: row.ssl_cert_last_check,
+    // 通知
+    notifyEnabled: !!row.notify_enabled,
     // 消息
     lastMessage: row.last_message
   }));
@@ -157,6 +159,7 @@ export async function getSite(env, siteId) {
     showInHostPanel: !!row.show_in_host_panel,
     sslCert: row.ssl_cert ? JSON.parse(row.ssl_cert) : null,
     sslCertLastCheck: row.ssl_cert_last_check,
+    notifyEnabled: !!row.notify_enabled,
     lastMessage: row.last_message
   };
 }
@@ -174,8 +177,8 @@ export async function createSite(env, site) {
       dns_record_type, dns_expected_value,
       tcp_host, tcp_port,
       push_token, push_interval, last_heartbeat, push_data, show_in_host_panel,
-      ssl_cert, ssl_cert_last_check, last_message
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ssl_cert, ssl_cert_last_check, notify_enabled, last_message
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     site.id,
     site.name,
@@ -204,6 +207,7 @@ export async function createSite(env, site) {
     site.showInHostPanel ? 1 : 0,
     site.sslCert ? JSON.stringify(site.sslCert) : null,
     site.sslCertLastCheck || 0,
+    site.notifyEnabled ? 1 : 0,
     site.lastMessage || null
   ).run();
   
@@ -227,7 +231,7 @@ export async function updateSite(env, siteId, updates) {
       dns_record_type = ?, dns_expected_value = ?,
       tcp_host = ?, tcp_port = ?,
       push_token = ?, push_interval = ?, last_heartbeat = ?, push_data = ?, show_in_host_panel = ?,
-      ssl_cert = ?, ssl_cert_last_check = ?, last_message = ?
+      ssl_cert = ?, ssl_cert_last_check = ?, notify_enabled = ?, last_message = ?
     WHERE id = ?
   `).bind(
     merged.name,
@@ -256,6 +260,7 @@ export async function updateSite(env, siteId, updates) {
     merged.showInHostPanel ? 1 : 0,
     merged.sslCert ? JSON.stringify(merged.sslCert) : null,
     merged.sslCertLastCheck,
+    merged.notifyEnabled ? 1 : 0,
     merged.lastMessage,
     siteId
   ).run();

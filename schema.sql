@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS sites (
   ssl_cert TEXT,  -- JSON
   ssl_cert_last_check INTEGER DEFAULT 0,
   
+  -- 通知设置
+  notify_enabled INTEGER DEFAULT 0,  -- 0=关闭, 1=启用
+  
   -- 状态消息
   last_message TEXT
 );
