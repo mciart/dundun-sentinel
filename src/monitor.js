@@ -28,9 +28,8 @@ export async function handleMonitor(env, ctx, options = {}) {
   }
 
   const debounceMinutes = settings.statusChangeDebounceMinutes || 3;
-  const checkInterval = settings.checkInterval || 10;
   
-  console.log(`📋 配置: 检测间隔=${checkInterval}分钟, 防抖时间=${debounceMinutes}分钟`);
+  console.log(`📋 配置: 检测间隔=10分钟, 防抖时间=${debounceMinutes}分钟`);
 
   // 根据监控类型分别检测（排除 Push 类型，Push 通过心跳上报直接写入 D1）
   const sitesToCheck = sites.filter(s => s.monitorType !== 'push');

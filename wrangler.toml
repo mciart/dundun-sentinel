@@ -21,7 +21,7 @@ database_id = "YOUR_D1_DATABASE_ID"
 
 # 定时任务
 [triggers]
-crons = ["* * * * *", "0 4 * * *"]
+crons = ["*/10 * * * *", "0 4 * * *"]
 
 # 本地开发配置
 [vars]

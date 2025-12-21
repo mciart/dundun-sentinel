@@ -47,7 +47,6 @@ export default function AdminPage() {
   const [settings, setSettings] = useState({ 
     historyHours: 24, 
     retentionHours: 720,
-    checkInterval: 10,
     statusChangeDebounceMinutes: 3
   });
   const [stats, setStats] = useState(null);
@@ -824,50 +823,6 @@ export default function AdminPage() {
                   className="w-full max-w-xs px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-slate-400 dark:focus:border-slate-500"
                   placeholder="例如：720（30天，推荐）"
                 />
-              </div>
-            </div>
-
-            {/* KV 数据写入间隔 */}
-            <div className="glass-card p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/20">
-                  <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                    KV 数据写入间隔
-                  </h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    网站检测每分钟自动执行，此设置控制无状态变化时多久写入一次 KV
-                  </p>
-                </div>
-              </div>
-
-              <div className="ml-12">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  写入间隔（分钟）
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="60"
-                  value={settings.checkInterval ?? ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const numeric = value === '' ? '' : Math.max(1, Math.min(60, parseInt(value)));
-                    setSettings({ ...settings, checkInterval: numeric === '' ? '' : Number(numeric) });
-                  }}
-                  onBlur={(e) => {
-                    if (e.target.value === '') {
-                      setSettings({ ...settings, checkInterval: 1 });
-                    }
-                  }}
-                  className="w-full max-w-xs px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-slate-400 dark:focus:border-slate-500"
-                  placeholder="1 - 60"
-                />
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  范围 1-60 分钟。检测结果实时写入 D1 数据库，D1 免费版每天 100,000 次写入配额。
-                </p>
               </div>
             </div>
 

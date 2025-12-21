@@ -42,7 +42,6 @@ export async function getSettings(env) {
     pageTitle: '网站监控',
     historyHours: 24,
     retentionHours: 720,
-    checkInterval: 10,
     statusChangeDebounceMinutes: 3,
     hostDisplayMode: 'card',
     notifications: {
