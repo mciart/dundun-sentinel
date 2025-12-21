@@ -7,10 +7,10 @@ const DNS_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CNAME', 'MX', 'NS', 'PTR', 'SOA',
 
 // 监控类型配置
 const MONITOR_TYPES = [
-  { value: 'http', label: 'HTTP(S) 监控', description: '监控网站或 API 可用性' },
-  { value: 'dns', label: 'DNS 监控', description: '监控域名 DNS 记录' },
-  { value: 'tcp', label: 'TCP 端口监控', description: '监控端口连通性' },
-  { value: 'push', label: 'Push 心跳监控', description: '被动接收主机心跳' },
+  { value: 'http', label: 'HTTP(S)', description: '监控网站或 API 可用性' },
+  { value: 'dns', label: 'DNS', description: '监控域名 DNS 记录' },
+  { value: 'tcp', label: 'TCP 端口', description: '监控端口连通性' },
+  { value: 'push', label: 'Push 心跳', description: '被动接收主机心跳' },
 ];
 
 export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) {
