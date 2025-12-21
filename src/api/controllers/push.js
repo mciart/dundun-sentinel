@@ -167,47 +167,87 @@ function generateBashScript(endpoint) {
 # 炖炖哨兵 - 主机心跳脚本
 # 建议添加到 crontab: */1 * * * * /path/to/heartbeat.sh
 
-# 获取 CPU 使用率
+# 获取 CPU 使用率（兼容多种 top 输出格式）
 get_cpu() {
-  top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1 2>/dev/null || echo "0"
+  # 尝试方式1: 标准格式 "Cpu(s): 2.0%us"
+  cpu=$(top -bn1 2>/dev/null | grep -i "cpu" | head -1 | grep -oE '[0-9]+\\.[0-9]+' | head -1)
+  if [ -n "$cpu" ]; then echo "$cpu"; return; fi
+  # 尝试方式2: 从 /proc/stat 计算
+  cpu=$(awk '/^cpu / {usage=($2+$4)*100/($2+$4+$5); printf "%.1f", usage}' /proc/stat 2>/dev/null)
+  if [ -n "$cpu" ]; then echo "$cpu"; return; fi
+  echo "0"
 }
 
 # 获取内存使用率
 get_memory() {
-  free | awk '/Mem:/ {printf("%.1f", $3/$2 * 100)}' 2>/dev/null || echo "0"
+  free 2>/dev/null | awk '/Mem:/ {printf("%.1f", $3/$2 * 100)}' || echo "0"
 }
 
 # 获取磁盘使用率
 get_disk() {
-  df -h / | awk 'NR==2 {print $5}' | tr -d '%' 2>/dev/null || echo "0"
+  df / 2>/dev/null | awk 'NR==2 {gsub(/%/,""); print $5}' || echo "0"
 }
 
 # 获取系统负载
 get_load() {
-  cat /proc/loadavg | awk '{print $1}' 2>/dev/null || echo "0"
+  awk '{print $1}' /proc/loadavg 2>/dev/null || echo "0"
 }
 
 # 获取运行时间（秒）
 get_uptime() {
-  cat /proc/uptime | awk '{print int($1)}' 2>/dev/null || echo "0"
+  awk '{print int($1)}' /proc/uptime 2>/dev/null || echo "0"
 }
 
-# 发送心跳
-CPU=$(get_cpu)
-MEM=$(get_memory)
-DISK=$(get_disk)
-LOAD=$(get_load)
-UPTIME=$(get_uptime)
+# 获取 CPU 温度（尝试多种路径）
+get_temperature() {
+  # 方式1: thermal_zone (常见于大多数 Linux)
+  if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
+    temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
+    if [ -n "$temp" ] && [ "$temp" -gt 0 ]; then
+      echo $((temp / 1000))
+      return
+    fi
+  fi
+  # 方式2: hwmon (常见于服务器)
+  for hwmon in /sys/class/hwmon/hwmon*/temp1_input; do
+    if [ -f "$hwmon" ]; then
+      temp=$(cat "$hwmon" 2>/dev/null)
+      if [ -n "$temp" ] && [ "$temp" -gt 0 ]; then
+        echo $((temp / 1000))
+        return
+      fi
+    fi
+  done 2>/dev/null
+  echo ""
+}
 
+# 收集数据（确保有默认值）
+CPU=\${$(get_cpu):-0}
+MEM=\${$(get_memory):-0}
+DISK=\${$(get_disk):-0}
+LOAD=\${$(get_load):-0}
+UPTIME=\${$(get_uptime):-0}
+TEMP=$(get_temperature)
+
+# 简化：直接用变量替换构建 JSON
+CPU=$(get_cpu); CPU=\${CPU:-0}
+MEM=$(get_memory); MEM=\${MEM:-0}
+DISK=$(get_disk); DISK=\${DISK:-0}
+LOAD=$(get_load); LOAD=\${LOAD:-0}
+UPTIME=$(get_uptime); UPTIME=\${UPTIME:-0}
+TEMP=$(get_temperature)
+
+# 构建 JSON
+if [ -n "$TEMP" ]; then
+  JSON='{"cpu":'$CPU',"memory":'$MEM',"disk":'$DISK',"load":'$LOAD',"uptime":'$UPTIME',"temperature":'$TEMP'}'
+else
+  JSON='{"cpu":'$CPU',"memory":'$MEM',"disk":'$DISK',"load":'$LOAD',"uptime":'$UPTIME'}'
+fi
+
+# 发送心跳
 curl -s -X POST "${endpoint}" \\
   -H "Content-Type: application/json" \\
-  -d "{
-    \\"cpu\\": $CPU,
-    \\"memory\\": $MEM,
-    \\"disk\\": $DISK,
-    \\"load\\": $LOAD,
-    \\"uptime\\": $UPTIME
-  }"`;
+  -d "$JSON"`;
 }
 
 function generatePythonScript(endpoint) {
@@ -255,13 +295,41 @@ def get_uptime():
     except:
         return 0
 
+def get_load():
+    try:
+        return os.getloadavg()[0]
+    except:
+        return 0
+
+def get_temperature():
+    # 方式1: thermal_zone
+    try:
+        with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
+            return round(int(f.read().strip()) / 1000, 1)
+    except:
+        pass
+    # 方式2: hwmon
+    import glob
+    for path in glob.glob('/sys/class/hwmon/hwmon*/temp1_input'):
+        try:
+            with open(path, 'r') as f:
+                return round(int(f.read().strip()) / 1000, 1)
+        except:
+            pass
+    return None
+
 def send_heartbeat():
     data = {
         'cpu': get_cpu(),
         'memory': get_memory(),
         'disk': get_disk(),
+        'load': get_load(),
         'uptime': get_uptime()
     }
+    
+    temp = get_temperature()
+    if temp is not None:
+        data['temperature'] = temp
     
     req = urllib.request.Request(
         '${endpoint}',
