@@ -5,6 +5,14 @@ import { api } from '../utils/api';
 
 const DNS_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV', 'TXT'];
 
+// 监控类型配置
+const MONITOR_TYPES = [
+  { value: 'http', label: 'HTTP(S) 监控', description: '监控网站或 API 可用性' },
+  { value: 'dns', label: 'DNS 监控', description: '监控域名 DNS 记录' },
+  { value: 'tcp', label: 'TCP 端口监控', description: '监控端口连通性' },
+  { value: 'push', label: 'Push 心跳监控', description: '被动接收主机心跳' },
+];
+
 export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) {
   const [formData, setFormData] = useState({
     name: site.name,
@@ -169,52 +177,20 @@ export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) 
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 监控类型
               </label>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="monitorType"
-                    value="http"
-                    checked={formData.monitorType === 'http'}
-                    onChange={(e) => setFormData({ ...formData, monitorType: e.target.value })}
-                    className="w-4 h-4 text-primary-600"
-                  />
-                  <span className="text-sm text-slate-700 dark:text-slate-300">HTTP(S) 监控</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="monitorType"
-                    value="dns"
-                    checked={formData.monitorType === 'dns'}
-                    onChange={(e) => setFormData({ ...formData, monitorType: e.target.value })}
-                    className="w-4 h-4 text-primary-600"
-                  />
-                  <span className="text-sm text-slate-700 dark:text-slate-300">DNS 监控</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="monitorType"
-                    value="tcp"
-                    checked={formData.monitorType === 'tcp'}
-                    onChange={(e) => setFormData({ ...formData, monitorType: e.target.value })}
-                    className="w-4 h-4 text-primary-600"
-                  />
-                  <span className="text-sm text-slate-700 dark:text-slate-300">TCP 端口</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="monitorType"
-                    value="push"
-                    checked={formData.monitorType === 'push'}
-                    onChange={(e) => setFormData({ ...formData, monitorType: e.target.value })}
-                    className="w-4 h-4 text-primary-600"
-                  />
-                  <span className="text-sm text-slate-700 dark:text-slate-300">Push 心跳</span>
-                </label>
-              </div>
+              <select
+                value={formData.monitorType}
+                onChange={(e) => setFormData({ ...formData, monitorType: e.target.value })}
+                className="input-field"
+              >
+                {MONITOR_TYPES.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {MONITOR_TYPES.find(t => t.value === formData.monitorType)?.description}
+              </p>
             </div>
 
             <div>
