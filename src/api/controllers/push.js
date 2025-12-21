@@ -163,9 +163,16 @@ curl -X POST "${endpoint}" \\
 }
 
 function generateBashScript(endpoint) {
+  // 从 endpoint 提取域名
+  const urlObj = new URL(endpoint);
+  const targetHost = urlObj.hostname;
+  
   return `#!/bin/bash
 # 炖炖哨兵 - 主机心跳脚本
 # 建议添加到 crontab: */1 * * * * /path/to/heartbeat.sh
+
+# 目标服务器（用于延迟检测）
+TARGET_HOST="${targetHost}"
 
 # 获取 CPU 使用率
 get_cpu() {
@@ -212,6 +219,30 @@ get_temperature() {
   done 2>/dev/null
 }
 
+# 获取到目标服务器的延迟（TCP ping 到 443 端口）
+get_latency() {
+  # 方式1: 使用 curl 测量 HTTPS 连接时间（最可靠）
+  latency=$(curl -o /dev/null -s -w '%{time_connect}' --connect-timeout 5 "https://$TARGET_HOST" 2>/dev/null)
+  if [ -n "$latency" ] && [ "$latency" != "0.000000" ]; then
+    # 转换为毫秒
+    echo "$latency" | awk '{printf "%.0f", $1 * 1000}'
+    return
+  fi
+  # 方式2: 使用 nc (netcat) TCP 连接测时
+  if command -v nc &>/dev/null; then
+    start=$(date +%s%3N)
+    nc -z -w 5 "$TARGET_HOST" 443 2>/dev/null
+    if [ $? -eq 0 ]; then
+      end=$(date +%s%3N)
+      echo $((end - start))
+      return
+    fi
+  fi
+  # 方式3: 使用 ping（ICMP，可能被防火墙拦截）
+  latency=$(ping -c 1 -W 5 "$TARGET_HOST" 2>/dev/null | grep -oP 'time=\\K[0-9.]+')
+  [ -n "$latency" ] && echo "\${latency%.*}" || echo "0"
+}
+
 # 收集数据
 CPU=$(get_cpu)
 MEM=$(get_memory)
@@ -219,12 +250,14 @@ DISK=$(get_disk)
 LOAD=$(get_load)
 UPTIME=$(get_uptime)
 TEMP=$(get_temperature)
+LATENCY=$(get_latency)
 
 # 构建 JSON
+JSON='{"cpu":'$CPU',"memory":'$MEM',"disk":'$DISK',"load":'$LOAD',"uptime":'$UPTIME',"latency":'$LATENCY
 if [ -n "$TEMP" ]; then
-  JSON='{"cpu":'$CPU',"memory":'$MEM',"disk":'$DISK',"load":'$LOAD',"uptime":'$UPTIME',"temperature":'$TEMP'}'
+  JSON=$JSON',"temperature":'$TEMP'}'
 else
-  JSON='{"cpu":'$CPU',"memory":'$MEM',"disk":'$DISK',"load":'$LOAD',"uptime":'$UPTIME'}'
+  JSON=$JSON'}'
 fi
 
 # 发送心跳
