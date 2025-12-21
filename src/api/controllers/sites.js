@@ -64,6 +64,7 @@ export async function addSite(request, env) {
       tcpPort: site.tcpPort ? parseInt(site.tcpPort, 10) : 0,
       showUrl: site.showUrl || false,
       notifyEnabled: site.notifyEnabled === true,  // 默认关闭通知
+      inverted: site.inverted === true,  // 反转模式
       sortOrder: site.sortOrder || existingSites.length,
       createdAt: Date.now(),
       // Push 监控相关字段
@@ -131,7 +132,7 @@ export async function updateSite(request, env, siteId) {
 
     // 检查关键字段是否变化，需要重置状态
     const criticalFields = [
-      'url', 'monitorType', 'method', 'expectedStatus', 'dnsRecordType', 'dnsExpectedValue', 'tcpHost', 'tcpPort'
+      'url', 'monitorType', 'method', 'expectedStatus', 'dnsRecordType', 'dnsExpectedValue', 'tcpHost', 'tcpPort', 'inverted'
     ];
 
     const needReset = criticalFields.some(field => {
