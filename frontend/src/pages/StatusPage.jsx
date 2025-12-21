@@ -164,7 +164,7 @@ export default function StatusPage() {
       {/* 头部 */}
       <header className="sticky top-0 z-50 backdrop-blur-md bg-white/40 dark:bg-[#0d0d0d]/40 shadow-sm" style={{ borderBottom: '1px solid var(--border-color)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-[auto,1fr,auto] items-center h-16 gap-4 relative">
+          <div className="grid grid-cols-[auto,1fr,auto] items-center h-16 gap-4">
             {/* Logo */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -185,30 +185,30 @@ export default function StatusPage() {
               </div>
             </motion.div>
 
-            {/* 中间 - 最后监测时间 */}
-            {lastCheckTime > 0 && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: 0.15 }}
-                className="hidden md:flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-slate-300 absolute left-1/2 transform -translate-x-1/2"
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></div>
-                <span className="font-medium whitespace-nowrap">
-                  数据更新: {new Date(lastCheckTime).toLocaleString('zh-CN', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                  }).replace(/\//g, '-')}
-                </span>
-              </motion.div>
-            )}
-
             {/* 右侧区域 */}
             <div className="flex items-center gap-3 justify-end">
+              {/* 最后监测时间 */}
+              {lastCheckTime > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3, delay: 0.15 }}
+                  className="hidden md:flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300"
+                >
+                  <span className="font-medium whitespace-nowrap">
+                    数据更新: {new Date(lastCheckTime).toLocaleString('zh-CN', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    }).replace(/\//g, '-')}
+                  </span>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                </motion.div>
+              )}
+              
               {/* 主题切换按钮 */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}

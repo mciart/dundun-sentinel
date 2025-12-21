@@ -75,7 +75,7 @@ export default function AdminPage() {
     enabled: false,
     events: ['down', 'recovered', 'cert_warning'],
     channels: {
-      email: { enabled: false, to: '', from: '' },
+      email: { enabled: false, to: '', from: '', emailType: 'resend' },
       wecom: { enabled: false, webhook: '' }
     }
   };
@@ -1075,15 +1075,7 @@ export default function AdminPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="p-1.5 rounded bg-slate-100 dark:bg-slate-800"><Mail className="w-4 h-4" /></div>
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">邮件通知（Resend）</span>
-                    <a 
-                      href="https://resend.com" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 underline"
-                    >
-                      申请 API Key →
-                    </a>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">邮件通知</span>
                   </div>
                   <div className="flex items-center gap-3 mb-3">
                     <label className="flex items-center gap-2">
@@ -1094,35 +1086,113 @@ export default function AdminPage() {
                       />
                       <span className="text-sm text-slate-700 dark:text-slate-300">启用</span>
                     </label>
+                    {/* 邮件类型选择 */}
+                    <select
+                      value={settings.notifications?.channels?.email?.emailType || 'resend'}
+                      onChange={(e) => setNotif(n => { n.channels.email.emailType = e.target.value; })}
+                      className="px-3 py-1 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                    >
+                      <option value="resend">Resend API</option>
+                      <option value="smtp">SMTP</option>
+                    </select>
                   </div>
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-col sm:flex-row gap-3">
+                  
+                  {/* Resend 配置 */}
+                  {(settings.notifications?.channels?.email?.emailType || 'resend') === 'resend' && (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <a 
+                          href="https://resend.com" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 underline"
+                        >
+                          申请 Resend API Key →
+                        </a>
+                      </div>
                       <input
                         type="password"
-                        className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                        className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
                         placeholder="Resend API Key (re_xxxxxxxx)"
                         value={settings.notifications?.channels?.email?.resendApiKey || ''}
                         onChange={(e) => setNotif(n => { n.channels.email.resendApiKey = e.target.value; })}
                       />
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <input
+                          type="email"
+                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          placeholder="收件邮箱"
+                          value={settings.notifications?.channels?.email?.to || ''}
+                          onChange={(e) => setNotif(n => { n.channels.email.to = e.target.value; })}
+                        />
+                        <input
+                          type="email"
+                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          placeholder="发件邮箱 (默认: onboarding@resend.dev)"
+                          value={settings.notifications?.channels?.email?.from ?? ''}
+                          onChange={(e) => setNotif(n => { n.channels.email.from = e.target.value; })}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">使用 Resend 发送邮件通知，每月免费 3000 封。</p>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <input
-                        type="email"
-                        className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
-                        placeholder="收件邮箱"
-                        value={settings.notifications?.channels?.email?.to || ''}
-                        onChange={(e) => setNotif(n => { n.channels.email.to = e.target.value; })}
-                      />
-                      <input
-                        type="email"
-                        className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
-                        placeholder="发件邮箱 (默认: onboarding@resend.dev)"
-                        value={settings.notifications?.channels?.email?.from ?? ''}
-                        onChange={(e) => setNotif(n => { n.channels.email.from = e.target.value; })}
-                      />
+                  )}
+                  
+                  {/* SMTP 配置 */}
+                  {settings.notifications?.channels?.email?.emailType === 'smtp' && (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <input
+                          type="text"
+                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          placeholder="SMTP 服务器 (如 smtp.qq.com)"
+                          value={settings.notifications?.channels?.email?.smtpHost || ''}
+                          onChange={(e) => setNotif(n => { n.channels.email.smtpHost = e.target.value; })}
+                        />
+                        <input
+                          type="number"
+                          className="w-24 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          placeholder="端口"
+                          value={settings.notifications?.channels?.email?.smtpPort || 587}
+                          onChange={(e) => setNotif(n => { n.channels.email.smtpPort = parseInt(e.target.value) || 587; })}
+                        />
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <input
+                          type="text"
+                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          placeholder="SMTP 用户名（通常是邮箱地址）"
+                          value={settings.notifications?.channels?.email?.smtpUser || ''}
+                          onChange={(e) => setNotif(n => { n.channels.email.smtpUser = e.target.value; })}
+                        />
+                        <input
+                          type="password"
+                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          placeholder="SMTP 密码/授权码"
+                          value={settings.notifications?.channels?.email?.smtpPass || ''}
+                          onChange={(e) => setNotif(n => { n.channels.email.smtpPass = e.target.value; })}
+                        />
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <input
+                          type="email"
+                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          placeholder="收件邮箱"
+                          value={settings.notifications?.channels?.email?.to || ''}
+                          onChange={(e) => setNotif(n => { n.channels.email.to = e.target.value; })}
+                        />
+                        <input
+                          type="email"
+                          className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          placeholder="发件邮箱"
+                          value={settings.notifications?.channels?.email?.from ?? ''}
+                          onChange={(e) => setNotif(n => { n.channels.email.from = e.target.value; })}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        常用端口: 465 (SSL/TLS) 或 587 (STARTTLS)。QQ邮箱需使用授权码而非密码。
+                      </p>
                     </div>
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">使用 Resend 发送邮件通知，每月免费 3000 封。未验证域名可使用 onboarding@resend.dev 发件邮箱。</p>
+                  )}
                 </div>
               </div>
             </div>

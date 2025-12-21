@@ -1,4 +1,5 @@
 import { formatDuration } from '../utils.js';
+import { connect } from 'cloudflare:sockets';
 
 function stateSiteName(cfg) {
   return (cfg && cfg.siteName) || '炖炖哨兵';
@@ -8,9 +9,12 @@ export async function sendEmailNotification(env, cfg, incident, site) {
   const emailCfg = cfg?.channels?.email || {};
   if (!emailCfg.enabled || !emailCfg.to) return;
 
+  // 判断使用哪种方式发送邮件
+  const smtpHost = emailCfg.smtpHost;
   const resendApiKey = emailCfg.resendApiKey;
-  if (!resendApiKey) {
-    console.warn('邮件通知已启用但未配置 Resend API Key');
+  
+  if (!smtpHost && !resendApiKey) {
+    console.warn('邮件通知已启用但未配置 SMTP 或 Resend API Key');
     return;
   }
   
@@ -155,15 +159,27 @@ export async function sendEmailNotification(env, cfg, incident, site) {
 </body>
 </html>`;
 
+  // 优先使用 SMTP，否则使用 Resend API
+  if (smtpHost) {
+    await sendViaSMTP(emailCfg, fromEmail, subject, html);
+  } else {
+    await sendViaResend(resendApiKey, emailCfg.to, fromEmail, subject, html);
+  }
+}
+
+/**
+ * 通过 Resend API 发送邮件
+ */
+async function sendViaResend(apiKey, to, from, subject, html) {
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${resendApiKey}`
+      'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      from: fromEmail,
-      to: emailCfg.to,
+      from,
+      to,
       subject,
       html
     })
@@ -172,6 +188,118 @@ export async function sendEmailNotification(env, cfg, incident, site) {
   if (!response.ok) {
     const errorText = await response.text();
     console.error('Resend 邮件发送失败:', response.status, errorText);
+    throw new Error(`Resend 发送失败: ${response.status}`);
+  }
+  
+  console.log('📧 Resend 邮件发送成功');
+}
+
+/**
+ * 通过 SMTP 发送邮件（使用 Cloudflare Sockets）
+ */
+async function sendViaSMTP(emailCfg, from, subject, html) {
+  const { smtpHost, smtpPort = 587, smtpUser, smtpPass, to } = emailCfg;
+  
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    throw new Error('SMTP 配置不完整');
+  }
+  
+  // 使用 TLS 端口（465）或 STARTTLS 端口（587）
+  const useTLS = smtpPort === 465;
+  
+  console.log(`📧 连接 SMTP 服务器: ${smtpHost}:${smtpPort}`);
+  
+  const socket = connect({
+    hostname: smtpHost,
+    port: smtpPort
+  }, useTLS ? { secureTransport: 'on' } : {});
+  
+  const writer = socket.writable.getWriter();
+  const reader = socket.readable.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  
+  // 读取响应
+  async function readResponse() {
+    const { value } = await reader.read();
+    const response = decoder.decode(value);
+    console.log('SMTP <', response.trim());
+    return response;
+  }
+  
+  // 发送命令
+  async function sendCommand(cmd, hideLog = false) {
+    if (!hideLog) {
+      console.log('SMTP >', cmd.trim());
+    }
+    await writer.write(encoder.encode(cmd + '\r\n'));
+    return await readResponse();
+  }
+  
+  try {
+    // 等待服务器欢迎信息
+    await readResponse();
+    
+    // EHLO
+    let response = await sendCommand(`EHLO localhost`);
+    
+    // STARTTLS（如果不是 TLS 端口）
+    if (!useTLS && response.includes('STARTTLS')) {
+      await sendCommand('STARTTLS');
+      // 升级到 TLS
+      await socket.startTls();
+      await sendCommand(`EHLO localhost`);
+    }
+    
+    // 认证
+    await sendCommand('AUTH LOGIN');
+    await sendCommand(btoa(smtpUser), true);
+    response = await sendCommand(btoa(smtpPass), true);
+    
+    if (!response.startsWith('235')) {
+      throw new Error('SMTP 认证失败: ' + response);
+    }
+    
+    // 发送邮件
+    await sendCommand(`MAIL FROM:<${from}>`);
+    await sendCommand(`RCPT TO:<${to}>`);
+    await sendCommand('DATA');
+    
+    // 邮件内容
+    const boundary = `----=_Part_${Date.now()}`;
+    const emailContent = [
+      `From: ${from}`,
+      `To: ${to}`,
+      `Subject: =?UTF-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      ``,
+      `--${boundary}`,
+      `Content-Type: text/html; charset=UTF-8`,
+      `Content-Transfer-Encoding: base64`,
+      ``,
+      btoa(unescape(encodeURIComponent(html))),
+      `--${boundary}--`,
+      `.`
+    ].join('\r\n');
+    
+    response = await sendCommand(emailContent);
+    
+    if (!response.startsWith('250')) {
+      throw new Error('邮件发送失败: ' + response);
+    }
+    
+    await sendCommand('QUIT');
+    console.log('📧 SMTP 邮件发送成功');
+    
+  } finally {
+    try {
+      writer.releaseLock();
+      reader.releaseLock();
+      await socket.close();
+    } catch (e) {
+      // 忽略关闭错误
+    }
   }
 }
 
