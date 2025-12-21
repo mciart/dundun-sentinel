@@ -11,8 +11,44 @@ export const DNS_TYPE_MAP = {
   'PTR': 12
 };
 
-export async function dnsResolveStatus(hostname, ua) {
+// DoH 服务器配置
+export const DOH_SERVERS = {
+  cloudflare: {
+    name: 'Cloudflare',
+    url: 'https://cloudflare-dns.com/dns-query'
+  },
+  google: {
+    name: 'Google',
+    url: 'https://dns.google/dns-query'
+  },
+  quad9: {
+    name: 'Quad9',
+    url: 'https://dns.quad9.net/dns-query'
+  },
+  alidns: {
+    name: '阿里 DNS',
+    url: 'https://dns.alidns.com/dns-query'
+  },
+  dnspod: {
+    name: '腾讯 DNSPod',
+    url: 'https://doh.pub/dns-query'
+  }
+};
+
+/**
+ * 获取 DoH 服务器 URL
+ */
+function getDohUrl(server, customUrl) {
+  if (server === 'custom' && customUrl) {
+    return customUrl;
+  }
+  return DOH_SERVERS[server]?.url || DOH_SERVERS.cloudflare.url;
+}
+
+export async function dnsResolveStatus(hostname, ua, dnsServer = 'cloudflare') {
   if (!hostname) return 'unknown';
+  
+  const dohUrl = getDohUrl(dnsServer);
   
   try {
     const controller = new AbortController();
@@ -25,12 +61,12 @@ export async function dnsResolveStatus(hostname, ua) {
     };
     
     const [resA, resAAAA] = await Promise.allSettled([
-      fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`, {
+      fetch(`${dohUrl}?name=${encodeURIComponent(hostname)}&type=A`, {
         method: 'GET',
         headers,
         signal: controller.signal
       }),
-      fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=AAAA`, {
+      fetch(`${dohUrl}?name=${encodeURIComponent(hostname)}&type=AAAA`, {
         method: 'GET',
         headers,
         signal: controller.signal
@@ -86,13 +122,15 @@ export async function checkDnsSite(site, checkTime) {
   const domain = site.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
   const recordType = site.dnsRecordType || 'A';
   const expectedValue = site.dnsExpectedValue?.trim() || '';
+  const dnsServer = site.dnsServer || 'cloudflare';
+  const dohUrl = getDohUrl(dnsServer);
   
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10000);
     
     const response = await fetch(
-      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=${recordType}`,
+      `${dohUrl}?name=${encodeURIComponent(domain)}&type=${recordType}`,
       {
         method: 'GET',
         headers: {

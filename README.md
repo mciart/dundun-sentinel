@@ -110,11 +110,11 @@
 |------------------|----------------------------------|--------------------------------------------------------------|------|
 | HTTP(S) 全类 | 原生 fetch()                     | 包含关键字、JSON 路径、Header 校验                         | 完成 |
 | TCP Port     | cloudflare:sockets                | 直接进行 TCP 三次握手                                       | 完成 |
-| DNS          | 1.1.1.1 DoH API                   | 虽是 API，但属于 Cloudflare 自家原生服务                   | 完成 |
+| DNS          | 1.1.1.1 DoH API                   | 属于 Cloudflare 自家原生服，可自定义DoH                   | 完成 |
 | Push/心跳    | Worker URL 路由                   | 被动接收主机心跳，支持 CPU/内存/磁盘/延迟等指标上报        | 完成 |
 | MySQL/PSQL   | 官方驱动 + connect()              | 直接从 Worker 连数据库握手（只要数据库公网可达）            | 计划 |
 | Redis        | connect() + Redis 协议            | 可以实现简单的 PING/PONG 握手                               | 计划 |
-| SMTP         | connect()                         | 模拟 SMTP 握手（HELO/EHLO）                                 | 计划 |
+| SMTP         | connect()                         | 模拟 SMTP 握手（HELO/EHLO）                                 | 支持 |
 | Browser Engine | Browser Rendering                | Cloudflare 自家的渲染引擎（需在后台开启）                   | 计划 |
 | MQTT/Kafka   | connect()                         | 只要在代码里集成对应的 JS 版客户端协议库                    | 计划 |
 | gRPC         | 原生 fetch (HTTP/2)               | Worker 原生支持 H2，可做 gRPC 探测                          | 计划 |
@@ -132,7 +132,7 @@
 - [ ] **自定义状态页** - 自定义 Logo、主题色、公告信息
 - [ ] **加入自定义检测IPv4或IPv6** - 可选择仅检测 IPv4 或 IPv6 地址，（使用 Happy Eyeballs 算法 判断 IP 协议）
 - [ ] **加入更多自定义条件判定** - 比如通过正则表达式匹配响应内容
-- [ ] **加入自定义域名解析DOH** - 支持自定义 DNS-over-HTTPS 解析服务
+- [x] **加入自定义域名解析DOH** - 支持自定义 DNS-over-HTTPS 解析服务（Cloudflare、Google、Quad9、阿里DNS、腾讯DNSPod）
 - [x] **加入反转模式** - 反转监控状态。如果服务可访问，则认为是故障
 
 已完成：

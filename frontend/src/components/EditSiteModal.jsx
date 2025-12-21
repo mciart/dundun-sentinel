@@ -5,6 +5,15 @@ import { api } from '../utils/api';
 
 const DNS_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CNAME', 'MX', 'NS', 'PTR', 'SOA', 'SRV', 'TXT'];
 
+// DoH 服务器选项
+const DOH_SERVERS = [
+  { value: 'cloudflare', label: 'Cloudflare', description: '1.1.1.1' },
+  { value: 'google', label: 'Google', description: '8.8.8.8' },
+  { value: 'quad9', label: 'Quad9', description: '9.9.9.9' },
+  { value: 'alidns', label: '阿里 DNS', description: '223.5.5.5' },
+  { value: 'dnspod', label: '腾讯 DNSPod', description: '119.29.29.29' },
+];
+
 // 监控类型配置
 const MONITOR_TYPES = [
   { value: 'http', label: 'HTTP(S)', description: '监控网站或 API 可用性' },
@@ -50,6 +59,7 @@ export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) 
     // DNS 相关
     dnsRecordType: site.dnsRecordType || 'A',
     dnsExpectedValue: site.dnsExpectedValue || '',
+    dnsServer: site.dnsServer || 'cloudflare',
     // TCP 相关
     tcpHost: site.tcpHost || '',
     tcpPort: site.tcpPort || '',
@@ -267,6 +277,25 @@ export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) 
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     示例：A 记录填 IP 地址，CNAME 填目标域名，MX 填邮件服务器
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    解析服务器（DoH）
+                  </label>
+                  <select
+                    value={formData.dnsServer}
+                    onChange={(e) => setFormData({ ...formData, dnsServer: e.target.value })}
+                    className="input-field"
+                  >
+                    {DOH_SERVERS.map(server => (
+                      <option key={server.value} value={server.value}>
+                        {server.label} ({server.description})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    选择用于 DNS 查询的 DoH（DNS over HTTPS）服务器
                   </p>
                 </div>
               </div>

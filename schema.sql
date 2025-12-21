@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS sites (
   -- DNS 监控配置
   dns_record_type TEXT DEFAULT 'A',
   dns_expected_value TEXT,
+  dns_server TEXT DEFAULT 'cloudflare',  -- DoH 服务器: cloudflare, google, quad9, alidns, dnspod, custom
   
   -- TCP 监控配置
   tcp_host TEXT,
