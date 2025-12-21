@@ -167,74 +167,53 @@ function generateBashScript(endpoint) {
 # 炖炖哨兵 - 主机心跳脚本
 # 建议添加到 crontab: */1 * * * * /path/to/heartbeat.sh
 
-# 获取 CPU 使用率（兼容多种 top 输出格式）
+# 获取 CPU 使用率
 get_cpu() {
-  # 尝试方式1: 标准格式 "Cpu(s): 2.0%us"
-  cpu=$(top -bn1 2>/dev/null | grep -i "cpu" | head -1 | grep -oE '[0-9]+\\.[0-9]+' | head -1)
-  if [ -n "$cpu" ]; then echo "$cpu"; return; fi
-  # 尝试方式2: 从 /proc/stat 计算
   cpu=$(awk '/^cpu / {usage=($2+$4)*100/($2+$4+$5); printf "%.1f", usage}' /proc/stat 2>/dev/null)
-  if [ -n "$cpu" ]; then echo "$cpu"; return; fi
-  echo "0"
+  [ -n "$cpu" ] && echo "$cpu" || echo "0"
 }
 
 # 获取内存使用率
 get_memory() {
-  free 2>/dev/null | awk '/Mem:/ {printf("%.1f", $3/$2 * 100)}' || echo "0"
+  mem=$(free 2>/dev/null | awk '/Mem:/ {printf "%.1f", $3/$2 * 100}')
+  [ -n "$mem" ] && echo "$mem" || echo "0"
 }
 
 # 获取磁盘使用率
 get_disk() {
-  df / 2>/dev/null | awk 'NR==2 {gsub(/%/,""); print $5}' || echo "0"
+  disk=$(df / 2>/dev/null | awk 'NR==2 {gsub(/%/,""); print $5}')
+  [ -n "$disk" ] && echo "$disk" || echo "0"
 }
 
 # 获取系统负载
 get_load() {
-  awk '{print $1}' /proc/loadavg 2>/dev/null || echo "0"
+  load=$(awk '{print $1}' /proc/loadavg 2>/dev/null)
+  [ -n "$load" ] && echo "$load" || echo "0"
 }
 
 # 获取运行时间（秒）
 get_uptime() {
-  awk '{print int($1)}' /proc/uptime 2>/dev/null || echo "0"
+  up=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
+  [ -n "$up" ] && echo "$up" || echo "0"
 }
 
-# 获取 CPU 温度（尝试多种路径）
+# 获取 CPU 温度
 get_temperature() {
-  # 方式1: thermal_zone (常见于大多数 Linux)
   if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
     temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
-    if [ -n "$temp" ] && [ "$temp" -gt 0 ]; then
-      echo $((temp / 1000))
-      return
-    fi
+    [ -n "$temp" ] && [ "$temp" -gt 0 ] 2>/dev/null && echo $((temp / 1000)) && return
   fi
-  # 方式2: hwmon (常见于服务器)
-  for hwmon in /sys/class/hwmon/hwmon*/temp1_input; do
-    if [ -f "$hwmon" ]; then
-      temp=$(cat "$hwmon" 2>/dev/null)
-      if [ -n "$temp" ] && [ "$temp" -gt 0 ]; then
-        echo $((temp / 1000))
-        return
-      fi
-    fi
+  for f in /sys/class/hwmon/hwmon*/temp1_input; do
+    [ -f "$f" ] && temp=$(cat "$f" 2>/dev/null) && [ -n "$temp" ] && echo $((temp / 1000)) && return
   done 2>/dev/null
-  echo ""
 }
 
-# 收集数据（确保有默认值）
-CPU=\${$(get_cpu):-0}
-MEM=\${$(get_memory):-0}
-DISK=\${$(get_disk):-0}
-LOAD=\${$(get_load):-0}
-UPTIME=\${$(get_uptime):-0}
-TEMP=$(get_temperature)
-
-# 简化：直接用变量替换构建 JSON
-CPU=$(get_cpu); CPU=\${CPU:-0}
-MEM=$(get_memory); MEM=\${MEM:-0}
-DISK=$(get_disk); DISK=\${DISK:-0}
-LOAD=$(get_load); LOAD=\${LOAD:-0}
-UPTIME=$(get_uptime); UPTIME=\${UPTIME:-0}
+# 收集数据
+CPU=$(get_cpu)
+MEM=$(get_memory)
+DISK=$(get_disk)
+LOAD=$(get_load)
+UPTIME=$(get_uptime)
 TEMP=$(get_temperature)
 
 # 构建 JSON
@@ -245,9 +224,7 @@ else
 fi
 
 # 发送心跳
-curl -s -X POST "${endpoint}" \\
-  -H "Content-Type: application/json" \\
-  -d "$JSON"`;
+curl -s -X POST "${endpoint}" -H "Content-Type: application/json" -d "$JSON"`;
 }
 
 function generatePythonScript(endpoint) {
