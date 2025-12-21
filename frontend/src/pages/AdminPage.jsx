@@ -327,7 +327,7 @@ export default function AdminPage() {
     <div className="min-h-screen relative">
       <StarryBackground />
       
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-white/40 dark:bg-[#0d0d0d]/40 shadow-sm" style={{ borderBottom: '1px solid var(--border-color)' }}>
+      <header className="sm:sticky top-0 z-50 backdrop-blur-md bg-white/40 dark:bg-[#0d0d0d]/40 shadow-sm" style={{ borderBottom: '1px solid var(--border-color)' }}>
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-6">
           <div className="flex items-center justify-between gap-2">
             <motion.div

@@ -164,7 +164,7 @@ export default function StatusPage() {
       <StarryBackground />
       
       {/* 头部 */}
-      <header className="sticky top-0 z-50 backdrop-blur-md bg-white/40 dark:bg-[#0d0d0d]/40 shadow-sm" style={{ borderBottom: '1px solid var(--border-color)' }}>
+      <header className="sm:sticky top-0 z-50 backdrop-blur-md bg-white/40 dark:bg-[#0d0d0d]/40 shadow-sm" style={{ borderBottom: '1px solid var(--border-color)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-[auto,1fr,auto] items-center h-16 gap-4">
             {/* Logo */}
