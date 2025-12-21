@@ -4,7 +4,7 @@
   "description": "炖炖哨兵 - 轻量级网站监控系统（Workers + Assets 版本）",
   "type": "module",
   "scripts": {
-    "dev": "npm run build:frontend && wrangler dev",
+    "dev": "npm run migrate && npm run build:frontend && wrangler dev",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "npm run build:frontend",
     "build:frontend": "cd frontend && npm install && npm run build",

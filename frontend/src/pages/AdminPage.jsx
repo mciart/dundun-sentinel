@@ -55,7 +55,8 @@ export default function AdminPage() {
     siteName: '炖炖哨兵',
     siteSubtitle: '慢慢炖，网站不 "糊锅"',
     pageTitle: '网站监控',
-    hostDisplayMode: 'card' // 'card' | 'list'
+    hostDisplayMode: 'card', // 'card' | 'list'
+    hostPanelExpanded: true // 默认展开
   });
   const [saving, setSaving] = useState(false);
   const [savingWebsite, setSavingWebsite] = useState(false);
@@ -149,7 +150,8 @@ export default function AdminPage() {
             siteName: apiSettings.siteName || '炖炖哨兵',
             siteSubtitle: apiSettings.siteSubtitle || '慢慢炖，网站不 "糊锅"',
             pageTitle: apiSettings.pageTitle || '网站监控',
-            hostDisplayMode: apiSettings.hostDisplayMode || 'card'
+            hostDisplayMode: apiSettings.hostDisplayMode || 'card',
+            hostPanelExpanded: apiSettings.hostPanelExpanded !== false
           });
           localStorage.setItem('monitorSettings', JSON.stringify(apiSettings));
         } catch (error) {
@@ -216,7 +218,8 @@ export default function AdminPage() {
         siteName: websiteSettings.siteName,
         siteSubtitle: websiteSettings.siteSubtitle,
         pageTitle: websiteSettings.pageTitle,
-        hostDisplayMode: websiteSettings.hostDisplayMode
+        hostDisplayMode: websiteSettings.hostDisplayMode,
+        hostPanelExpanded: websiteSettings.hostPanelExpanded
       };
 
       await api.updateSettings(updatedSettings);
@@ -787,6 +790,36 @@ export default function AdminPage() {
                 </div>
                 <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                   列表模式支持拖拽调整主机显示顺序
+                </p>
+              </div>
+
+              {/* 默认展开状态 */}
+              <div className="ml-12 mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                  默认展开状态
+                </label>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setWebsiteSettings({ ...websiteSettings, hostPanelExpanded: !websiteSettings.hostPanelExpanded })}
+                    className={`
+                      relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                      ${websiteSettings.hostPanelExpanded ? 'bg-primary-500' : 'bg-slate-300 dark:bg-slate-600'}
+                    `}
+                  >
+                    <span
+                      className={`
+                        inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+                        ${websiteSettings.hostPanelExpanded ? 'translate-x-6' : 'translate-x-1'}
+                      `}
+                    />
+                  </button>
+                  <span className="text-sm text-slate-600 dark:text-slate-400">
+                    {websiteSettings.hostPanelExpanded ? '默认展开面板' : '默认折叠面板'}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  设置主机监控面板在主页首次加载时是展开还是折叠
                 </p>
               </div>
             </div>

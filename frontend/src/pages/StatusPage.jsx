@@ -32,7 +32,8 @@ export default function StatusPage() {
     siteName: '炖炖哨兵',
     siteSubtitle: '慢慢炖，网站不 "糊锅"',
     pageTitle: '网站监控',
-    hostDisplayMode: 'card'
+    hostDisplayMode: 'card',
+    hostPanelExpanded: true
   });
   
   const { fetchAllHistory, historyCache } = useHistory();
@@ -59,7 +60,8 @@ export default function StatusPage() {
         siteName: cfg.siteName || '炖炖哨兵',
         siteSubtitle: cfg.siteSubtitle || '慢慢炖，网站不 "糊锅"',
         pageTitle: cfg.pageTitle || '网站监控',
-        hostDisplayMode: cfg.hostDisplayMode || 'card'
+        hostDisplayMode: cfg.hostDisplayMode || 'card',
+        hostPanelExpanded: cfg.hostPanelExpanded !== false
       };
       setSiteSettings(settings);
       document.title = `${settings.siteName} - ${settings.pageTitle}`;
@@ -250,6 +252,7 @@ export default function StatusPage() {
         <HostMonitorPanel 
           sites={sites} 
           displayMode={siteSettings.hostDisplayMode}
+          defaultExpanded={siteSettings.hostPanelExpanded}
           onReorder={getToken() ? async (siteIds) => {
             try {
               await api.reorderHosts(siteIds);

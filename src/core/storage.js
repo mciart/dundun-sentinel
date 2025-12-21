@@ -44,6 +44,7 @@ export async function getSettings(env) {
     retentionHours: 720,
     statusChangeDebounceMinutes: 3,
     hostDisplayMode: 'card',
+    hostPanelExpanded: true,
     notifications: {
       enabled: false,
       events: ['down', 'recovered', 'cert_warning'],
@@ -442,6 +443,8 @@ export async function getAllGroups(env) {
     id: row.id,
     name: row.name,
     order: row.sort_order,
+    icon: row.icon || null,
+    iconColor: row.icon_color || null,
     createdAt: row.created_at
   }));
 }
@@ -466,8 +469,8 @@ export async function createGroup(env, group) {
  */
 export async function updateGroup(env, groupId, updates) {
   await env.DB.prepare(`
-    UPDATE groups SET name = ?, sort_order = ? WHERE id = ?
-  `).bind(updates.name, updates.order || 0, groupId).run();
+    UPDATE groups SET name = ?, sort_order = ?, icon = ?, icon_color = ? WHERE id = ?
+  `).bind(updates.name, updates.order || 0, updates.icon || null, updates.iconColor || null, groupId).run();
 }
 
 /**

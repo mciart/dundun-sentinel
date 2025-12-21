@@ -38,7 +38,9 @@ export async function getDashboardData(request, env) {
     const formattedGroups = groups.map(g => ({
       id: g.id,
       name: g.name,
-      order: g.order || 0
+      order: g.order || 0,
+      icon: g.icon || null,
+      iconColor: g.iconColor || null
     }));
 
     return jsonResponse({ 
@@ -48,7 +50,8 @@ export async function getDashboardData(request, env) {
         siteName: settings.siteName || '炖炖哨兵',
         siteSubtitle: settings.siteSubtitle || '慢慢炖，网站不 "糊锅"',
         pageTitle: settings.pageTitle || '网站监控',
-        hostDisplayMode: settings.hostDisplayMode || 'card'
+        hostDisplayMode: settings.hostDisplayMode || 'card',
+        hostPanelExpanded: settings.hostPanelExpanded !== false
       }, 
       incidents 
     });

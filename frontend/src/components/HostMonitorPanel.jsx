@@ -194,10 +194,15 @@ import { api } from '../utils/api';
  * 主机监控面板组件
  * 用于显示 Push 心跳监控的主机状态和详细指标
  */
-export default function HostMonitorPanel({ sites = [], displayMode = 'card', onReorder }) {
-  const [expanded, setExpanded] = useState(true);
+export default function HostMonitorPanel({ sites = [], displayMode = 'card', defaultExpanded = true, onReorder }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [selectedHost, setSelectedHost] = useState(null);
   const [items, setItems] = useState([]);
+  
+  // 同步 defaultExpanded 变化（首次加载时应用设置）
+  useEffect(() => {
+    setExpanded(defaultExpanded);
+  }, [defaultExpanded]);
   
   // 过滤出 Push 类型且设置为在主机面板显示的站点
   const pushSites = useMemo(() => {

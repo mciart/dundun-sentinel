@@ -111,6 +111,8 @@ CREATE TABLE IF NOT EXISTS groups (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   sort_order INTEGER DEFAULT 0,
+  icon TEXT,
+  icon_color TEXT,
   created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
 );
 
