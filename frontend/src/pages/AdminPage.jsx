@@ -1118,7 +1118,7 @@ export default function AdminPage() {
                   )}
                   
                   {/* SMTP 配置 */}
-                  {settings.notifications?.channels?.email?.emailType === 'smtp' && (
+                  {(settings.notifications?.channels?.email?.emailType || 'smtp') === 'smtp' && (
                     <div className="flex flex-col gap-3">
                       <div className="flex flex-col sm:flex-row gap-3">
                         <input
