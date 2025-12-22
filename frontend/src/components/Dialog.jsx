@@ -92,13 +92,13 @@ export default function Dialog({
           onClick={(e) => e.stopPropagation()}
         >
 
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-[#2a2a2a] dark:to-[#2a2a2a]">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-[#282828] dark:to-[#282828]">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
               {title}
             </h3>
             <motion.button
               onClick={handleCancel}
-              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-[#333] transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
               aria-label="关闭"
               {...closeButtonHover}
             >
@@ -135,7 +135,7 @@ export default function Dialog({
           </div>
 
           <motion.div 
-            className="flex gap-3 px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-[#2a2a2a] dark:to-[#2a2a2a] border-t border-slate-100 dark:border-slate-700"
+            className="flex gap-3 px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-[#282828] dark:to-[#282828] border-t border-slate-100 dark:border-slate-700"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.3 }}
