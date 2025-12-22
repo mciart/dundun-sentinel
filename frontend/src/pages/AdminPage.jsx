@@ -1078,7 +1078,7 @@ export default function AdminPage() {
                   </div>
                   
                   {/* Resend 配置 */}
-                  {(settings.notifications?.channels?.email?.emailType || 'resend') === 'resend' && (
+                  {settings.notifications?.channels?.email?.emailType === 'resend' && (
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                         <a 
