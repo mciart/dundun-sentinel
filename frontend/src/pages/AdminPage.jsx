@@ -911,8 +911,30 @@ export default function AdminPage() {
                 />
               </div>
             </div>
+            {/* 保存按钮 */}
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveSettings}
+                disabled={saving}
+                className="px-6 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Settings className="w-4 h-4" />
+                {saving ? '保存中...' : '保存设置'}
+              </button>
+            </div>
+          </motion.div>
+        )}
 
-            {/* 设定防止临时波动误报时间 */}
+        {activeTab === 'notifications' && (
+          <motion.div
+            key="notifications"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: DURATION.normal, ease: EASING.bounce }}
+            className="space-y-6"
+          >
+            {/* 通知防抖设置 */}
             <div className="glass-card p-6">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/20">
@@ -920,10 +942,10 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                    防抖时间设置
+                    通知防抖设置
                   </h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    防止网络短暂波动导致误报，持续异常达到设定时间才确认状态变化
+                    防止网络短暂波动导致误报，持续异常达到设定时间后才发送通知（不影响状态显示和历史记录）
                   </p>
                 </div>
               </div>
@@ -952,33 +974,11 @@ export default function AdminPage() {
                   placeholder="推荐 3 分钟"
                 />
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                  范围 0.5-30 分钟，持续异常达到此时间才确认状态变化。设置越小响应越快，但可能增加误报。
+                  范围 0.5-30 分钟。持续异常达到此时间才发送通知，设置越小响应越快但可能增加误报。历史记录和状态显示不受此设置影响。
                 </p>
               </div>
             </div>
-            {/* 保存按钮 */}
-            <div className="flex justify-end">
-              <button
-                onClick={handleSaveSettings}
-                disabled={saving}
-                className="px-6 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 text-white font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Settings className="w-4 h-4" />
-                {saving ? '保存中...' : '保存设置'}
-              </button>
-            </div>
-          </motion.div>
-        )}
 
-        {activeTab === 'notifications' && (
-          <motion.div
-            key="notifications"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: DURATION.normal, ease: EASING.bounce }}
-            className="space-y-6"
-          >
             <div className="glass-card p-6">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/20">
