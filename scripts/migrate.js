@@ -194,8 +194,6 @@ async function migrate() {
   // 第三步：创建索引（如果不存在）
   console.log('\n📋 检查索引...');
   const indexes = [
-    'CREATE INDEX IF NOT EXISTS idx_push_history_site_time ON push_history(site_id, timestamp DESC)',
-    'CREATE INDEX IF NOT EXISTS idx_push_history_timestamp ON push_history(timestamp)',
     'CREATE INDEX IF NOT EXISTS idx_incidents_site ON incidents(site_id)',
     'CREATE INDEX IF NOT EXISTS idx_incidents_time ON incidents(created_at DESC)'
   ];
@@ -212,6 +210,7 @@ async function migrate() {
   }
 
   // 第四步：创建聚合历史表（如果不存在）
+  // 普通站点和 Push 站点统一使用此表
   console.log('\n📋 检查聚合历史表...');
   try {
     execSync(

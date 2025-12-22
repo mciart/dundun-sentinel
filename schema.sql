@@ -108,34 +108,12 @@ CREATE TABLE IF NOT EXISTS certificate_alerts (
   FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
 );
 
--- Push 指标历史表：存储主机监控的历史指标数据
-CREATE TABLE IF NOT EXISTS push_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  site_id TEXT NOT NULL,
-  timestamp INTEGER NOT NULL,
-  cpu REAL,
-  memory REAL,
-  disk REAL,
-  load REAL,
-  temperature REAL,
-  latency INTEGER,
-  uptime INTEGER,
-  custom TEXT,  -- JSON，存储自定义字段
-  created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
-  
-  FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
-);
-
--- Push 历史索引
-CREATE INDEX IF NOT EXISTS idx_push_history_site_time ON push_history(site_id, timestamp DESC);
--- Push 历史索引：优化清理旧数据
-CREATE INDEX IF NOT EXISTS idx_push_history_timestamp ON push_history(timestamp);
-
--- 聚合历史表：每个站点一行，存储 JSON 数组（优化 D1 读取行数）
--- 每次读取只需 1 行/站点，而不是 100+ 行/站点
+-- 聚合历史表：每个站点一行，存储 JSON 数组（优化 D1 读写行数）
+-- 普通站点: [{t:时间戳,s:状态,c:状态码,r:响应时间,m:消息},...]
+-- Push站点: [{t:时间戳,s:状态,r:响应时间,p:{c:cpu,m:mem,d:disk,l:load,T:temp,L:latency,u:uptime,x:custom}},...]
 CREATE TABLE IF NOT EXISTS history_aggregated (
   site_id TEXT PRIMARY KEY,
-  data TEXT NOT NULL DEFAULT '[]',  -- JSON 数组: [{t:时间戳,s:状态,c:状态码,r:响应时间,m:消息},...]
+  data TEXT NOT NULL DEFAULT '[]',
   updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
   FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
 );

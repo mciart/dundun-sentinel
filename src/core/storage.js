@@ -326,6 +326,8 @@ const MAX_HISTORY_RECORDS = 4320; // 30天 × 144条/天 = 4320
 
 /**
  * 添加历史记录到聚合表
+ * 普通站点: {t, s, c, r, m}
+ * Push站点: {t, s, c, r, m, p: {c, m, d, l, T, L, u, x}}
  */
 export async function addHistoryAggregated(env, siteId, record) {
   // 读取现有数据
@@ -342,14 +344,30 @@ export async function addHistoryAggregated(env, siteId, record) {
     }
   }
   
-  // 添加新记录（压缩格式）
-  history.unshift({
+  // 构建新记录（压缩格式）
+  const newRecord = {
     t: record.timestamp,
     s: record.status,
     c: record.statusCode || 0,
     r: record.responseTime || 0,
     m: record.message || null
-  });
+  };
+  
+  // 如果有 Push 数据，添加 p 字段
+  if (record.pushData) {
+    newRecord.p = {
+      c: record.pushData.cpu ?? null,
+      m: record.pushData.memory ?? null,
+      d: record.pushData.disk ?? null,
+      l: record.pushData.load ?? null,
+      T: record.pushData.temperature ?? null,
+      L: record.pushData.latency ?? null,
+      u: record.pushData.uptime ?? null,
+      x: record.pushData.custom || null
+    };
+  }
+  
+  history.unshift(newRecord);
   
   // 限制记录数量
   if (history.length > MAX_HISTORY_RECORDS) {
@@ -810,6 +828,7 @@ export const putAdminPassword = setAdminPassword;
 
 /**
  * 更新 Push 心跳（立即写入数据库）
+ * Push 数据统一存入 history_aggregated，使用 p 字段存储指标
  */
 export async function updatePushHeartbeat(env, siteId, heartbeatData) {
   const now = Date.now();
@@ -829,89 +848,72 @@ export async function updatePushHeartbeat(env, siteId, heartbeatData) {
     siteId
   ).run();
   
-  // 同时添加历史记录
-  await addHistory(env, siteId, {
+  // 添加历史记录（包含 Push 指标）
+  await addHistoryAggregated(env, siteId, {
     timestamp: now,
     status: 'online',
     statusCode: 200,
     responseTime: heartbeatData.responseTime || 0,
-    message: 'OK'
-  });
-  
-  // 添加 Push 指标历史记录
-  await addPushHistory(env, siteId, {
-    timestamp: now,
-    cpu: pushData.cpu,
-    memory: pushData.memory,
-    disk: pushData.disk,
-    load: pushData.load,
-    temperature: pushData.temperature,
-    latency: pushData.latency,
-    uptime: pushData.uptime,
-    custom: pushData.custom
+    message: 'OK',
+    // Push 指标数据
+    pushData: {
+      cpu: pushData.cpu,
+      memory: pushData.memory,
+      disk: pushData.disk,
+      load: pushData.load,
+      temperature: pushData.temperature,
+      latency: pushData.latency,
+      uptime: pushData.uptime,
+      custom: pushData.custom
+    }
   });
   
   console.log(`📡 Push 心跳已写入 D1: ${siteId}`);
 }
 
 /**
- * 添加 Push 指标历史记录
- */
-export async function addPushHistory(env, siteId, data) {
-  const now = Date.now();
-  await env.DB.prepare(`
-    INSERT INTO push_history (site_id, timestamp, cpu, memory, disk, load, temperature, latency, uptime, custom, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    siteId,
-    data.timestamp || now,
-    data.cpu ?? null,
-    data.memory ?? null,
-    data.disk ?? null,
-    data.load ?? null,
-    data.temperature ?? null,
-    data.latency ?? null,
-    data.uptime ?? null,
-    data.custom ? JSON.stringify(data.custom) : null,
-    now
-  ).run();
-}
-
-/**
- * 获取 Push 指标历史记录
+ * 获取 Push 指标历史记录（从 history_aggregated 提取）
  */
 export async function getPushHistory(env, siteId, hours = 24) {
-  const cutoff = Date.now() - hours * 60 * 60 * 1000;
-  const results = await env.DB.prepare(`
-    SELECT * FROM push_history 
-    WHERE site_id = ? AND timestamp > ?
-    ORDER BY timestamp ASC
-  `).bind(siteId, cutoff).all();
+  const row = await env.DB.prepare(
+    'SELECT data FROM history_aggregated WHERE site_id = ?'
+  ).bind(siteId).first();
   
-  return (results.results || []).map(row => ({
-    timestamp: row.timestamp,
-    cpu: row.cpu,
-    memory: row.memory,
-    disk: row.disk,
-    load: row.load,
-    temperature: row.temperature,
-    latency: row.latency,
-    uptime: row.uptime,
-    custom: row.custom ? JSON.parse(row.custom) : null
-  }));
+  if (!row || !row.data) return [];
+  
+  let history = [];
+  try {
+    history = JSON.parse(row.data);
+  } catch (e) {
+    return [];
+  }
+  
+  const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  
+  // 按时间过滤并提取 Push 指标
+  return history
+    .filter(r => r.t > cutoff && r.p) // 只返回有 Push 数据的记录
+    .map(r => ({
+      timestamp: r.t,
+      cpu: r.p?.c,
+      memory: r.p?.m,
+      disk: r.p?.d,
+      load: r.p?.l,
+      temperature: r.p?.T,
+      latency: r.p?.L,
+      uptime: r.p?.u,
+      custom: r.p?.x
+    }));
 }
 
 /**
- * 清理旧的 Push 历史记录
+ * 清理旧的 Push 历史记录（已合并到 cleanupAggregatedHistory，此函数保留兼容性）
  */
 export async function cleanupOldPushHistory(env, retentionHours = 168) {
-  const cutoff = Date.now() - retentionHours * 60 * 60 * 1000;
-  const result = await env.DB.prepare(
-    'DELETE FROM push_history WHERE timestamp < ?'
-  ).bind(cutoff).run();
-  
-  console.log(`🧹 清理了 ${result.meta?.changes || 0} 条旧 Push 历史记录`);
-  return result.meta?.changes || 0;
+  // Push 历史已合并到 history_aggregated，由 cleanupAggregatedHistory 统一清理
+  // 此函数保留空实现以兼容调用
+  console.log('🧹 Push 历史已合并到聚合表，统一清理');
+  return 0;
 }
 
 // ==================== 证书告警操作 ====================
@@ -1050,24 +1052,8 @@ export async function initDatabase(env) {
         alert_type TEXT
       )
     `),
-    env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS push_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        site_id TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
-        cpu REAL,
-        memory REAL,
-        disk REAL,
-        load REAL,
-        temperature REAL,
-        latency INTEGER,
-        uptime INTEGER,
-        custom TEXT,
-        created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
-      )
-    `),
-    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_push_history_site_time ON push_history(site_id, timestamp DESC)'),
-    // 聚合历史表：每站点一行，存储 JSON 数组（优化 D1 读取行数）
+    // 聚合历史表：每站点一行，存储 JSON 数组（优化 D1 读写行数）
+    // 普通站点和 Push 站点统一使用此表
     env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS history_aggregated (
         site_id TEXT PRIMARY KEY,
@@ -1113,32 +1099,6 @@ async function runMigrations(env) {
   if (!incidentsCols.has('type')) {
     migrations.push(env.DB.prepare("ALTER TABLE incidents ADD COLUMN type TEXT DEFAULT 'down'"));
     console.log('  + 添加 incidents.type 列');
-  }
-  
-  // 检查 push_history 表是否存在
-  const pushHistoryCheck = await env.DB.prepare(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name='push_history'"
-  ).first();
-  
-  if (!pushHistoryCheck) {
-    migrations.push(env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS push_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        site_id TEXT NOT NULL,
-        timestamp INTEGER NOT NULL,
-        cpu REAL,
-        memory REAL,
-        disk REAL,
-        load REAL,
-        temperature REAL,
-        latency INTEGER,
-        uptime INTEGER,
-        custom TEXT,
-        created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
-      )
-    `));
-    migrations.push(env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_push_history_site_time ON push_history(site_id, timestamp DESC)'));
-    console.log('  + 创建 push_history 表');
   }
   
   if (migrations.length > 0) {
@@ -1191,7 +1151,6 @@ export async function clearAllData(env) {
     env.DB.prepare('DELETE FROM history_aggregated'),
     env.DB.prepare('DELETE FROM incidents'),
     env.DB.prepare('DELETE FROM certificate_alerts'),
-    env.DB.prepare('DELETE FROM push_history'),
     env.DB.prepare('DELETE FROM sites'),
     env.DB.prepare("DELETE FROM groups WHERE id != 'default'"),
     env.DB.prepare("DELETE FROM config WHERE key NOT IN ('admin_password', 'admin_path')")
