@@ -550,45 +550,18 @@ export async function cleanupAggregatedHistory(env, retentionHours = 720) {
 }
 
 /**
- * 添加历史记录（保留旧表兼容，同时写入聚合表）
+ * 添加历史记录（只写入聚合表）
  */
 export async function addHistory(env, siteId, record) {
-  // 同时写入旧表和聚合表
-  await Promise.all([
-    env.DB.prepare(`
-      INSERT INTO history (site_id, timestamp, status, status_code, response_time, message)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(
-      siteId,
-      record.timestamp,
-      record.status,
-      record.statusCode || 0,
-      record.responseTime || 0,
-      record.message || null
-    ).run(),
-    addHistoryAggregated(env, siteId, record)
-  ]);
+  await addHistoryAggregated(env, siteId, record);
 }
 
 /**
- * 批量添加历史记录（优化：单次事务，同时写入聚合表）
+ * 批量添加历史记录（只写入聚合表，优化 D1 写入量）
  */
 export async function batchAddHistory(env, records) {
   if (!records || records.length === 0) return;
-  
-  // 写入旧表
-  const statements = records.map(r =>
-    env.DB.prepare(`
-      INSERT INTO history (site_id, timestamp, status, status_code, response_time, message)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(r.siteId, r.timestamp, r.status, r.statusCode || 0, r.responseTime || 0, r.message || null)
-  );
-  
-  // 并行写入旧表和聚合表
-  await Promise.all([
-    env.DB.batch(statements),
-    batchAddHistoryAggregated(env, records)
-  ]);
+  await batchAddHistoryAggregated(env, records);
 }
 
 /**
@@ -606,22 +579,11 @@ export async function batchGetSiteHistory(env, siteIds, hours = 24) {
 }
 
 /**
- * 清理旧历史记录（同时清理旧表和聚合表）
+ * 清理旧历史记录（只清理聚合表）
  */
 export async function cleanupOldHistory(env, retentionHours = 720) {
-  const cutoff = Date.now() - retentionHours * 60 * 60 * 1000;
-  
-  // 清理旧表
-  const result = await env.DB.prepare(
-    'DELETE FROM history WHERE timestamp < ?'
-  ).bind(cutoff).run();
-  
-  // 清理聚合表
-  const aggregatedCount = await cleanupAggregatedHistory(env, retentionHours);
-  
-  const oldTableCount = result.meta?.changes || 0;
-  console.log(`🧹 清理了 ${oldTableCount} 条旧历史记录，${aggregatedCount} 条聚合历史记录`);
-  return oldTableCount + aggregatedCount;
+  const count = await cleanupAggregatedHistory(env, retentionHours);
+  return count;
 }
 
 // ==================== 分组操作 ====================

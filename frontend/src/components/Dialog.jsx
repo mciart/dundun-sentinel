@@ -92,7 +92,7 @@ export default function Dialog({
           onClick={(e) => e.stopPropagation()}
         >
 
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-800">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-gradient-to-r from-slate-50 to-white dark:from-[#2a2a2a] dark:to-[#2a2a2a]">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
               {title}
             </h3>
@@ -135,7 +135,7 @@ export default function Dialog({
           </div>
 
           <motion.div 
-            className="flex gap-3 px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-900/50 dark:to-slate-900/30 border-t border-slate-100 dark:border-slate-700"
+            className="flex gap-3 px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-[#2a2a2a] dark:to-[#2a2a2a] border-t border-slate-100 dark:border-slate-700"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.3 }}
