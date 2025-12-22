@@ -226,10 +226,6 @@ async function migrate() {
   }
   
   console.log(`\n✅ 迁移完成！执行了 ${migrationsRun} 个迁移操作`);
-
-  // 提示运行历史数据迁移
-  console.log('\n💡 如需迁移旧历史数据到聚合表，请运行:');
-  console.log(`   node scripts/migrate-history.js ${isRemote ? '--remote' : '--local'}`);
 }
 
 migrate().catch(console.error);
