@@ -6,28 +6,20 @@ const HistoryContext = createContext();
 export function HistoryProvider({ children }) {
   const [historyCache, setHistoryCache] = useState({});
   const [loading, setLoading] = useState(false);
-  const lastFetchTimeRef = useRef(null);
   const fetchPromiseRef = useRef(null);
-  const cacheRef = useRef({});
 
-
-  const fetchAllHistory = useCallback(async (hours = 24, force = false) => {
-
-    if (fetchPromiseRef.current && !force) {
+  // 实时获取历史数据（聚合表优化后，N 站点只读 N 行，无需缓存）
+  const fetchAllHistory = useCallback(async (hours = 24) => {
+    // 防止并发请求
+    if (fetchPromiseRef.current) {
       return fetchPromiseRef.current;
-    }
-
-    if (!force && lastFetchTimeRef.current && Date.now() - lastFetchTimeRef.current < 5 * 60 * 1000) {
-      return cacheRef.current;
     }
 
     setLoading(true);
     
     const promise = api.getAllHistory(hours)
       .then(data => {
-        cacheRef.current = data;
         setHistoryCache(data);
-        lastFetchTimeRef.current = Date.now();
         fetchPromiseRef.current = null;
         return data;
       })
@@ -49,9 +41,7 @@ export function HistoryProvider({ children }) {
   }, [historyCache]);
 
   const clearCache = useCallback(() => {
-    cacheRef.current = {};
     setHistoryCache({});
-    lastFetchTimeRef.current = null;
     fetchPromiseRef.current = null;
   }, []);
 

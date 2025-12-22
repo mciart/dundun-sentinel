@@ -149,3 +149,12 @@ CREATE TABLE IF NOT EXISTS push_history (
 CREATE INDEX IF NOT EXISTS idx_push_history_site_time ON push_history(site_id, timestamp DESC);
 -- Push 历史索引：优化清理旧数据
 CREATE INDEX IF NOT EXISTS idx_push_history_timestamp ON push_history(timestamp);
+
+-- 聚合历史表：每个站点一行，存储 JSON 数组（优化 D1 读取行数）
+-- 每次读取只需 1 行/站点，而不是 100+ 行/站点
+CREATE TABLE IF NOT EXISTS history_aggregated (
+  site_id TEXT PRIMARY KEY,
+  data TEXT NOT NULL DEFAULT '[]',  -- JSON 数组: [{t:时间戳,s:状态,c:状态码,r:响应时间,m:消息},...]
+  updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+  FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+);

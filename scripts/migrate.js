@@ -212,8 +212,24 @@ async function migrate() {
       // 忽略已存在的索引错误
     }
   }
+
+  // 第四步：创建聚合历史表（如果不存在）
+  console.log('\n📋 检查聚合历史表...');
+  try {
+    execSync(
+      `npx wrangler d1 execute ${DB_NAME} --command "CREATE TABLE IF NOT EXISTS history_aggregated (site_id TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT '[]', updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000));" ${TARGET} --yes`,
+      { encoding: 'utf-8', stdio: 'pipe' }
+    );
+    console.log('   ✅ 聚合历史表已就绪');
+  } catch (e) {
+    console.log('   ⚠️ 聚合历史表创建失败:', e.message);
+  }
   
   console.log(`\n✅ 迁移完成！执行了 ${migrationsRun} 个迁移操作`);
+
+  // 提示运行历史数据迁移
+  console.log('\n💡 如需迁移旧历史数据到聚合表，请运行:');
+  console.log(`   node scripts/migrate-history.js ${isRemote ? '--remote' : '--local'}`);
 }
 
 migrate().catch(console.error);

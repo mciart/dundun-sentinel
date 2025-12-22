@@ -72,6 +72,7 @@ export default function StatusPage() {
       setIncidents(inc);
 
 
+      // 实时获取历史数据（聚合表优化后无需缓存）
       let historyHours = 24;
       try {
         const savedSettings = localStorage.getItem('monitorSettings');
