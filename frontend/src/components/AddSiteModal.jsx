@@ -118,7 +118,7 @@ export default function AddSiteModal({ onClose, onSubmit, groups = [] }) {
             </motion.h2>
             <motion.button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-[#333] transition-colors"
               {...closeButtonHover}
             >
               <X className="w-5 h-5" />

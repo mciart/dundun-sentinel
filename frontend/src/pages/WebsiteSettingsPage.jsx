@@ -72,7 +72,7 @@ export default function WebsiteSettingsPage() {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/admin')}
-                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-[#333] transition-colors"
                 title="返回管理后台"
               >
                 <ArrowLeft className="w-5 h-5" />

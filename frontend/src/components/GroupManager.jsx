@@ -258,7 +258,7 @@ export default function GroupManager({ groups = [], onAdd, onEdit, onDelete }) {
                 </h2>
                 <motion.button
                   onClick={closeModal}
-                  className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                  className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-[#333] transition-colors"
                   aria-label="关闭"
                   {...closeButtonHover}
                   transition={{ duration: 0.2 }}

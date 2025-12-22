@@ -98,7 +98,7 @@ export default function Dialog({
             </h3>
             <motion.button
               onClick={handleCancel}
-              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-[#333] transition-colors"
               aria-label="关闭"
               {...closeButtonHover}
             >

@@ -103,7 +103,7 @@ export default function HostMonitorPanel({ sites = [], displayMode = 'card', def
           </div>
         </div>
         <button 
-          className={`p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 btn-icon ${expanded ? '' : 'rotate-180'}`}
+          className={`p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-[#333] transition-all duration-300 btn-icon ${expanded ? '' : 'rotate-180'}`}
         >
           <ChevronUp className="w-5 h-5" />
         </button>
@@ -696,7 +696,7 @@ function HostDetailModal({ site, onClose }) {
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 sm:p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-all duration-200 shrink-0 btn-icon hover:rotate-90"
+              className="p-1.5 sm:p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-[#333] transition-all duration-200 shrink-0 btn-icon hover:rotate-90"
             >
               <X className="w-5 h-5" />
             </button>
