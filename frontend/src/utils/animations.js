@@ -46,20 +46,20 @@ export const SPRING = {
 
 // 页面容器入场动画（用于页面最外层）
 export const pageVariants = {
-  initial: { 
-    opacity: 0, 
-    scale: 0.95, 
-    y: 20 
+  initial: {
+    opacity: 0,
+    scale: 0.95,
+    y: 20
   },
-  animate: { 
-    opacity: 1, 
-    scale: 1, 
-    y: 0 
+  animate: {
+    opacity: 1,
+    scale: 1,
+    y: 0
   },
-  exit: { 
-    opacity: 0, 
-    scale: 0.95, 
-    y: -20 
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    y: -20
   },
 };
 
@@ -70,15 +70,15 @@ export const pageTransition = {
 
 // 页面卡片容器（登录页、404页等独立页面）
 export const cardContainerVariants = {
-  initial: { 
-    opacity: 0, 
-    scale: 0.8, 
-    y: 30 
+  initial: {
+    opacity: 0,
+    scale: 0.8,
+    y: 30
   },
-  animate: { 
-    opacity: 1, 
-    scale: 1, 
-    y: 0 
+  animate: {
+    opacity: 1,
+    scale: 1,
+    y: 0
   },
 };
 
@@ -158,12 +158,12 @@ export const numberPop = {
 
 // 按钮悬浮效果
 export const buttonHover = {
-  whileHover: { 
-    scale: 1.02, 
+  whileHover: {
+    scale: 1.02,
     y: -2,
     transition: { duration: DURATION.fast, ease: EASING.bounce }
   },
-  whileTap: { 
+  whileTap: {
     scale: 0.98,
     transition: { duration: 0.1 }
   },
@@ -171,11 +171,11 @@ export const buttonHover = {
 
 // 图标按钮悬浮效果
 export const iconButtonHover = {
-  whileHover: { 
+  whileHover: {
     scale: 1.1,
     transition: { duration: DURATION.fast }
   },
-  whileTap: { 
+  whileTap: {
     scale: 0.9,
     transition: { duration: 0.1 }
   },
@@ -183,12 +183,12 @@ export const iconButtonHover = {
 
 // 关闭按钮悬浮效果（带旋转）
 export const closeButtonHover = {
-  whileHover: { 
-    scale: 1.1, 
+  whileHover: {
+    scale: 1.1,
     rotate: 90,
     transition: { duration: DURATION.fast }
   },
-  whileTap: { 
+  whileTap: {
     scale: 0.9,
     transition: { duration: 0.1 }
   },
@@ -196,12 +196,12 @@ export const closeButtonHover = {
 
 // 卡片悬浮效果
 export const cardHover = {
-  whileHover: { 
+  whileHover: {
     y: -4,
     scale: 1.02,
     transition: { duration: DURATION.fast, ease: EASING.bounce }
   },
-  whileTap: { 
+  whileTap: {
     scale: 0.98,
     transition: { duration: 0.1 }
   },
@@ -209,11 +209,11 @@ export const cardHover = {
 
 // 链接悬浮效果
 export const linkHover = {
-  whileHover: { 
+  whileHover: {
     scale: 1.05,
     transition: { duration: DURATION.fast }
   },
-  whileTap: { 
+  whileTap: {
     scale: 0.95,
     transition: { duration: 0.1 }
   },
@@ -227,10 +227,10 @@ export const linkHover = {
 
 // 摇晃动画（错误提示、警告）
 export const shake = {
-  animate: { 
+  animate: {
     rotate: [0, -10, 10, -10, 0],
   },
-  transition: { 
+  transition: {
     duration: DURATION.slow,
     ease: "easeInOut"
   },
@@ -238,10 +238,10 @@ export const shake = {
 
 // 轻微摇晃（Logo等）
 export const wiggle = {
-  animate: { 
+  animate: {
     rotate: [0, -5, 5, -5, 0],
   },
-  transition: { 
+  transition: {
     duration: DURATION.slow,
     ease: "easeInOut"
   },
@@ -249,10 +249,10 @@ export const wiggle = {
 
 // 脉冲效果
 export const pulse = {
-  animate: { 
+  animate: {
     scale: [1, 1.05, 1],
   },
-  transition: { 
+  transition: {
     duration: 1,
     repeat: Infinity,
     ease: "easeInOut"
@@ -262,10 +262,10 @@ export const pulse = {
 // 旋转加载
 export const spin = {
   animate: { rotate: 360 },
-  transition: { 
-    duration: 1, 
-    repeat: Infinity, 
-    ease: "linear" 
+  transition: {
+    duration: 1,
+    repeat: Infinity,
+    ease: "linear"
   },
 };
 
@@ -289,8 +289,8 @@ export const listContainerVariants = {
 
 // 列表项 variants
 export const listItemVariants = {
-  hidden: { 
-    opacity: 0, 
+  hidden: {
+    opacity: 0,
     y: 20,
     scale: 0.95
   },
@@ -311,28 +311,44 @@ export const listItemVariants = {
  * ========================================
  */
 
-// 背景遮罩
+// 背景遮罩 - 无动画
 export const backdropVariants = {
-  initial: { opacity: 0, backdropFilter: 'blur(0px)' },
-  animate: { opacity: 1, backdropFilter: 'blur(8px)' },
-  exit: { opacity: 0, backdropFilter: 'blur(0px)' },
+  initial: { opacity: 1 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
 };
 
 export const backdropTransition = {
-  duration: DURATION.normal,
+  duration: 0,
 };
 
-// 模态框内容
+// 模态框内容 - 无动画
 export const modalVariants = {
-  initial: { opacity: 0, scale: 0.9, y: 30 },
-  animate: { opacity: 1, scale: 1, y: 0 },
-  exit: { opacity: 0, scale: 0.9, y: 30 },
+  initial: { opacity: 1 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
 };
 
 export const modalTransition = {
-  duration: DURATION.normal,
-  ease: EASING.bounce,
-  scale: SPRING.normal,
+  duration: 0,
+};
+
+// 弹窗内容元素动画 - 无动画
+export const modalContentVariants = {
+  initial: { opacity: 1 },
+  animate: { opacity: 1 },
+};
+
+// 弹窗图标动画 - 无动画
+export const modalIconVariants = {
+  initial: { opacity: 1 },
+  animate: { opacity: 1 },
+};
+
+// 弹窗按钮区域动画 - 无动画
+export const modalButtonsVariants = {
+  initial: { opacity: 1 },
+  animate: { opacity: 1 },
 };
 
 /**
@@ -376,11 +392,11 @@ const animations = {
   easing: EASING,
   duration: DURATION,
   spring: SPRING,
-  
+
   // 页面
   page: { variants: pageVariants, transition: pageTransition },
   cardContainer: { variants: cardContainerVariants, transition: cardContainerTransition },
-  
+
   // 元素
   fadeInUp,
   fadeInDown,
@@ -390,32 +406,32 @@ const animations = {
   bounceIn,
   rotateIn,
   numberPop,
-  
+
   // 交互
   buttonHover,
   iconButtonHover,
   closeButtonHover,
   cardHover,
   linkHover,
-  
+
   // 特效
   shake,
   wiggle,
   pulse,
   spin,
-  
+
   // 列表
   list: {
     container: listContainerVariants,
     item: listItemVariants,
   },
-  
+
   // 模态框
   modal: {
     backdrop: { variants: backdropVariants, transition: backdropTransition },
     content: { variants: modalVariants, transition: modalTransition },
   },
-  
+
   // 工具
   withDelay,
   stagger,

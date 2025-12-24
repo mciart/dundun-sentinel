@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, AlertCircle, CheckCircle, Info, AlertTriangle } from 'lucide-react';
-import { 
+import {
   EASING,
   DURATION,
   modalVariants,
@@ -88,7 +88,7 @@ export default function Dialog({
           animate={modalVariants.animate}
           exit={modalVariants.exit}
           transition={modalTransition}
-          className="bg-white dark:bg-[#222] rounded-2xl shadow-2xl shadow-slate-300/50 dark:shadow-black/50 w-full max-w-md overflow-hidden border border-slate-100 dark:border-slate-700"
+          className="glass-card w-full max-w-md overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
 
@@ -108,20 +108,20 @@ export default function Dialog({
 
           <div className="px-6 py-5 bg-white dark:bg-[#222]">
             <div className="flex gap-4">
-              <motion.div 
+              <motion.div
                 className={`flex-shrink-0 w-10 h-10 rounded-full ${bgColor} flex items-center justify-center`}
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{ 
-                  delay: 0.1, 
-                  type: "spring", 
-                  stiffness: 500, 
-                  damping: 15 
+                transition={{
+                  delay: 0.1,
+                  type: "spring",
+                  stiffness: 500,
+                  damping: 15
                 }}
               >
                 <Icon className={`w-5 h-5 ${color}`} />
               </motion.div>
-              <motion.div 
+              <motion.div
                 className="flex-1 pt-1"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -134,7 +134,7 @@ export default function Dialog({
             </div>
           </div>
 
-          <motion.div 
+          <motion.div
             className="flex gap-3 px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-[#282828] dark:to-[#282828] border-t border-slate-100 dark:border-slate-700"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

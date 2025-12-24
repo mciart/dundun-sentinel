@@ -36,11 +36,11 @@ canvas {
 
 @layer base {
   :root {
-    --border-color: rgb(226, 232, 240); 
+    --border-color: rgb(226, 232, 240);
   }
-  
+
   .dark {
-    --border-color: rgb(45, 45, 45); 
+    --border-color: rgb(45, 45, 45);
   }
 
   body {
@@ -59,21 +59,21 @@ canvas {
     @apply relative;
     border: 1px solid var(--border-color);
   }
-  
+
   .dark .glass-card {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
   }
-  
+
   .glass-card:hover {
     box-shadow: 0 3px 12px 2px rgba(66, 90, 239, 0.15), 0 0 0 1px rgba(66, 90, 239, 0.3);
     @apply border-[#425AEF];
   }
-  
+
   .dark .glass-card:hover {
     box-shadow: 0 3px 12px 2px rgba(255, 149, 62, 0.2), 0 0 0 1px rgba(255, 149, 62, 0.4);
     @apply border-[#FF953E];
   }
-  
+
   .site-card {
     @apply bg-white/70 dark:bg-[#1a1a1a]/90;
     @apply backdrop-blur-xl;
@@ -90,16 +90,16 @@ canvas {
     transform-origin: center;
     will-change: transform, box-shadow;
   }
-  
+
   .btn:hover {
     transform: translateY(-2px);
   }
-  
+
   .btn:active {
     transform: translateY(0) scale(0.96);
     transition-duration: 100ms;
   }
-  
+
   .btn-primary {
     @apply btn px-6 py-3 rounded-xl;
     @apply bg-gradient-to-r from-primary-500 to-primary-600;
@@ -108,7 +108,7 @@ canvas {
     @apply shadow-lg shadow-primary-500/30;
     @apply hover:shadow-xl hover:shadow-primary-500/40;
   }
-  
+
   .btn-primary:active {
     @apply shadow-md shadow-primary-500/30;
   }
@@ -121,23 +121,23 @@ canvas {
     @apply shadow-md;
     @apply hover:shadow-lg;
   }
-  
+
   /* 小按钮Q弹效果 */
   .btn-icon {
     @apply relative p-2 rounded-lg;
     @apply transition-all duration-200;
     transform-origin: center;
   }
-  
+
   .btn-icon:hover {
     transform: scale(1.1);
   }
-  
+
   .btn-icon:active {
     transform: scale(0.9);
     transition-duration: 100ms;
   }
-  
+
   /* 危险按钮 */
   .btn-danger {
     @apply btn px-6 py-3 rounded-xl;
@@ -147,7 +147,7 @@ canvas {
     @apply shadow-lg shadow-danger-500/30;
     @apply hover:shadow-xl hover:shadow-danger-500/40;
   }
-  
+
   /* 幽灵按钮 */
   .btn-ghost {
     @apply btn px-4 py-2 rounded-lg;
@@ -202,18 +202,21 @@ canvas {
 }
 
 .scrollbar-hide {
-  -ms-overflow-style: none; 
-  scrollbar-width: none; 
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-  display: none; 
+  display: none;
 }
 
 @keyframes gradient-shift {
-  0%, 100% {
+
+  0%,
+  100% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
@@ -246,9 +249,13 @@ canvas {
 }
 
 @keyframes bounce {
-  0%, 80%, 100% {
+
+  0%,
+  80%,
+  100% {
     transform: scale(0);
   }
+
   40% {
     transform: scale(1);
   }
@@ -260,6 +267,7 @@ canvas {
     transform: rotate(-180deg) scale(0.5);
     opacity: 0;
   }
+
   100% {
     transform: rotate(0deg) scale(1);
     opacity: 1;
@@ -271,9 +279,12 @@ canvas {
 }
 
 @keyframes twinkle {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 0.5;
   }
+
   50% {
     opacity: 1;
   }
@@ -290,8 +301,8 @@ canvas {
   display: none;
 }
 
-#theme-checkbox + label {
-  font-size: 1.6rem; 
+#theme-checkbox+label {
+  font-size: 1.6rem;
   height: 1em;
   width: 2.5em;
   border-radius: 0.25em;
@@ -302,16 +313,16 @@ canvas {
   position: relative;
 }
 
-#theme-checkbox:checked + label {
+#theme-checkbox:checked+label {
   background-color: #3a3a3a;
 }
 
-#theme-checkbox + label:active {
+#theme-checkbox+label:active {
   transform: scale(0.85);
   transition: transform 0.2s;
 }
 
-#theme-checkbox + label div {
+#theme-checkbox+label div {
   width: 0.8em;
   height: 0.8em;
   border-radius: inherit;
@@ -323,16 +334,16 @@ canvas {
   background-color: #f2f2f2;
 }
 
-#theme-checkbox:checked + label div {
+#theme-checkbox:checked+label div {
   left: 1.6em;
   background-color: #212121;
 }
 
-#theme-checkbox + label span {
+#theme-checkbox+label span {
   display: flex;
 }
 
-#theme-checkbox + label svg {
+#theme-checkbox+label svg {
   display: inline-block;
   height: 1em;
   width: 1em;
@@ -340,11 +351,11 @@ canvas {
   box-sizing: border-box;
 }
 
-#theme-checkbox + label span:first-of-type {
+#theme-checkbox+label span:first-of-type {
   color: #3a3a3a;
 }
 
-#theme-checkbox + label span:last-of-type {
+#theme-checkbox+label span:last-of-type {
   color: #cecece;
 }
 
@@ -472,10 +483,12 @@ canvas {
     transform: scale(1);
     opacity: 0.8;
   }
+
   50% {
     transform: scale(1.5);
     opacity: 0;
   }
+
   100% {
     transform: scale(1);
     opacity: 0;
@@ -492,9 +505,11 @@ canvas {
     transform: scale(0);
     opacity: 0;
   }
+
   50% {
     transform: scale(1.1);
   }
+
   100% {
     transform: scale(1);
     opacity: 1;
@@ -512,9 +527,17 @@ canvas {
 }
 
 @keyframes numberPop {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.2);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* 平滑淡入 */
@@ -523,38 +546,78 @@ canvas {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
-/* 模态框动画增强 */
+/* 模态框动画增强 - 简洁版 */
 .modal-backdrop {
-  animation: backdropFade 0.3s ease-out;
+  animation: backdropFade 0.2s ease-out;
 }
 
 @keyframes backdropFade {
   from {
     opacity: 0;
-    backdrop-filter: blur(0);
   }
+
   to {
     opacity: 1;
-    backdrop-filter: blur(8px);
   }
 }
 
 .modal-content {
-  animation: modalSlide 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: modalSlideIn 0.2s ease-out;
 }
 
-@keyframes modalSlide {
+@keyframes modalSlideIn {
   from {
     opacity: 0;
-    transform: scale(0.9) translateY(20px);
+    transform: scale(0.95) translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
+  }
+}
+
+/* 弹窗退出动画 */
+.modal-content-exit {
+  animation: modalSlideOut 0.15s ease-in forwards;
+}
+
+@keyframes modalSlideOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+}
+
+/* 下拉菜单弹窗效果 */
+.dropdown-modal {
+  animation: dropdownFade 0.15s ease-out;
+  transform-origin: top center;
+}
+
+@keyframes dropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -606,9 +669,17 @@ canvas {
 }
 
 @keyframes badgePop {
-  0% { transform: scale(0); }
-  70% { transform: scale(1.2); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(0);
+  }
+
+  70% {
+    transform: scale(1.2);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 /* 滑动切换效果 */
@@ -626,6 +697,7 @@ canvas {
     opacity: 0;
     transform: translateY(-10px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -634,31 +706,51 @@ canvas {
 
 /* 抖动提示效果 */
 .shake-hint {
-  animation: shakeHint 0.5s cubic-bezier(.36,.07,.19,.97);
+  animation: shakeHint 0.5s cubic-bezier(.36, .07, .19, .97);
 }
 
 @keyframes shakeHint {
-  10%, 90% { transform: translateX(-1px); }
-  20%, 80% { transform: translateX(2px); }
-  30%, 50%, 70% { transform: translateX(-4px); }
-  40%, 60% { transform: translateX(4px); }
+
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+
+  20%,
+  80% {
+    transform: translateX(2px);
+  }
+
+  30%,
+  50%,
+  70% {
+    transform: translateX(-4px);
+  }
+
+  40%,
+  60% {
+    transform: translateX(4px);
+  }
 }
 
 /* 骨架屏闪烁效果 */
 .skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.3) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.3) 50%,
+      rgba(255, 255, 255, 0) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 /* 呼吸灯效果 */
@@ -667,8 +759,17 @@ canvas {
 }
 
 @keyframes breathing {
-  0%, 100% { opacity: 0.6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.02); }
+
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
 }
 
 /* 工具提示动画 */
@@ -681,6 +782,7 @@ canvas {
     opacity: 0;
     transform: scale(0.8) translateY(5px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);

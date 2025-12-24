@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock } from 'lucide-react';
 import { useHistory } from '../context/HistoryContext';
-import { 
+import {
   modalVariants,
   modalTransition,
   backdropVariants,
@@ -14,17 +14,17 @@ export default function HistoryModal({ site, onClose }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
-  const [timeRange, setTimeRange] = useState(24); 
-  const [statusFilter, setStatusFilter] = useState('all'); 
+  const [timeRange, setTimeRange] = useState(24);
+  const [statusFilter, setStatusFilter] = useState('all');
   const scrollContainerRef = useRef(null);
-  
+
 
   const { getHistory: getCachedHistory } = useHistory();
 
   useEffect(() => {
     const originalStyle = window.getComputedStyle(document.body).overflow;
     document.body.style.overflow = 'hidden';
-    
+
     return () => {
       document.body.style.overflow = originalStyle;
     };
@@ -34,17 +34,17 @@ export default function HistoryModal({ site, onClose }) {
     const loadHistory = () => {
       setLoading(true);
       try {
-        
+
         const savedSettings = localStorage.getItem('monitorSettings');
         const settings = savedSettings ? JSON.parse(savedSettings) : { historyHours: 24 };
         const hours = settings.historyHours || 24;
         setTimeRange(hours);
-        
+
         const cachedData = getCachedHistory(site.id);
         const historyData = cachedData?.history || [];
-        
+
         setHistory(historyData);
-        
+
         const total = historyData?.length || 0;
         const online = historyData?.filter(r => r.status === 'online').length || 0;
         const slow = historyData?.filter(r => r.status === 'slow').length || 0;
@@ -52,7 +52,7 @@ export default function HistoryModal({ site, onClose }) {
         const avgResponseTime = total > 0
           ? Math.round(historyData.reduce((sum, r) => sum + (r.responseTime || 0), 0) / total)
           : 0;
-        
+
         setStats({
           total,
           online,
@@ -73,13 +73,13 @@ export default function HistoryModal({ site, onClose }) {
     }
   }, [site, getCachedHistory]);
 
-  const filteredHistory = statusFilter === 'all' 
-    ? history 
+  const filteredHistory = statusFilter === 'all'
+    ? history
     : history.filter(r => r.status === statusFilter);
 
   return (
     <AnimatePresence>
-      <motion.div 
+      <motion.div
         className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
         initial={backdropVariants.initial}
         animate={backdropVariants.animate}
@@ -94,7 +94,7 @@ export default function HistoryModal({ site, onClose }) {
           animate={modalVariants.animate}
           exit={modalVariants.exit}
           transition={modalTransition}
-          className="w-full max-w-4xl bg-white dark:bg-[#222] rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col"
+          className="glass-card w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
           onWheel={(e) => e.stopPropagation()}
           onTouchMove={(e) => e.stopPropagation()}
@@ -178,41 +178,37 @@ export default function HistoryModal({ site, onClose }) {
                 </span>
                 <button
                   onClick={() => setStatusFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    statusFilter === 'all'
-                      ? 'bg-primary-500 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#333]'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${statusFilter === 'all'
+                    ? 'bg-primary-500 text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#333]'
+                    }`}
                 >
                   全部 ({stats?.total || 0})
                 </button>
                 <button
                   onClick={() => setStatusFilter('online')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    statusFilter === 'online'
-                      ? 'bg-emerald-500 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#333]'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${statusFilter === 'online'
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#333]'
+                    }`}
                 >
                   正常 ({stats?.online || 0})
                 </button>
                 <button
                   onClick={() => setStatusFilter('slow')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    statusFilter === 'slow'
-                      ? 'bg-amber-500 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#333]'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${statusFilter === 'slow'
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#333]'
+                    }`}
                 >
                   缓慢 ({stats?.slow || 0})
                 </button>
                 <button
                   onClick={() => setStatusFilter('offline')}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    statusFilter === 'offline'
-                      ? 'bg-red-500 text-white shadow-sm'
-                      : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#333]'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${statusFilter === 'offline'
+                    ? 'bg-red-500 text-white shadow-sm'
+                    : 'bg-slate-100 dark:bg-[#2a2a2a] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#333]'
+                    }`}
                 >
                   异常 ({stats?.offline || 0})
                 </button>
@@ -221,17 +217,17 @@ export default function HistoryModal({ site, onClose }) {
           )}
 
           {/* 历史记录列表 */}
-          <div 
+          <div
             ref={scrollContainerRef}
             className="flex-1 overflow-y-auto p-6"
             onWheel={(e) => {
               const element = scrollContainerRef.current;
               if (!element) return;
-              
+
               const { scrollTop, scrollHeight, clientHeight } = element;
               const isAtTop = scrollTop === 0;
               const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1;
-              
+
 
               if ((isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0)) {
                 e.preventDefault();
@@ -268,27 +264,26 @@ export default function HistoryModal({ site, onClose }) {
                     second: '2-digit'
                   });
 
-                  const statusColor = 
+                  const statusColor =
                     record.status === 'online' ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' :
-                    record.status === 'slow' ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' :
-                    'text-red-600 bg-red-50 dark:bg-red-900/20';
+                      record.status === 'slow' ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' :
+                        'text-red-600 bg-red-50 dark:bg-red-900/20';
 
-                  const statusText = 
+                  const statusText =
                     record.status === 'online' ? '正常' :
-                    record.status === 'slow' ? '缓慢' : '异常';
+                      record.status === 'slow' ? '缓慢' : '异常';
 
                   return (
                     <motion.div
-                        key={index}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
-                      >
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
+                    >
                       <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${
-                          record.status === 'online' ? 'bg-emerald-500' :
+                        <div className={`w-2 h-2 rounded-full ${record.status === 'online' ? 'bg-emerald-500' :
                           record.status === 'slow' ? 'bg-amber-500' : 'bg-red-500'
-                        }`} />
+                          }`} />
                         <div>
                           <div className="text-sm font-medium text-slate-900 dark:text-white">
                             {dateStr} {timeStr}

@@ -6,8 +6,8 @@ import { getLucideIcon } from '../utils/helpers';
 import Dialog from './Dialog';
 import { useDialog } from '../hooks/useDialog';
 import { DEFAULTS, CHART_COLORS } from '../config';
-import { 
-  EASING, 
+import {
+  EASING,
   DURATION,
   modalVariants,
   modalTransition,
@@ -78,8 +78,8 @@ export default function GroupManager({ groups = [], onAdd, onEdit, onDelete }) {
       // 创建更新队列
       const updates = localGroups.map((group, index) => {
         if (group.order !== index) {
-            // 只更新顺序变动的项
-            return onEdit(group.id, { ...group, order: index }, true); // 假设第三个参数是 silent（不显示通知）
+          // 只更新顺序变动的项
+          return onEdit(group.id, { ...group, order: index }, true); // 假设第三个参数是 silent（不显示通知）
         }
         return Promise.resolve();
       });
@@ -171,12 +171,12 @@ export default function GroupManager({ groups = [], onAdd, onEdit, onDelete }) {
                 <div className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                   <GripVertical className="w-4 h-4" />
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   {group.icon && (() => {
                     const IconComponent = getLucideIcon(group.icon);
                     return IconComponent ? (
-                      <IconComponent 
+                      <IconComponent
                         className="w-5 h-5 flex-shrink-0"
                         style={{ color: group.iconColor || 'currentColor' }}
                       />
@@ -192,7 +192,7 @@ export default function GroupManager({ groups = [], onAdd, onEdit, onDelete }) {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex gap-1">
                 <button
                   onClick={() => openEditModal(group)}
@@ -214,7 +214,7 @@ export default function GroupManager({ groups = [], onAdd, onEdit, onDelete }) {
             </Reorder.Item>
           ))}
         </Reorder.Group>
-        
+
         {localGroups.length === 0 && (
           <div className="p-6 rounded-xl bg-slate-100 dark:bg-[#2a2a2a]/50 text-center text-sm text-slate-500 dark:text-slate-400">
             还没有创建任何分类，点击右上角按钮添加。
@@ -285,9 +285,9 @@ export default function GroupManager({ groups = [], onAdd, onEdit, onDelete }) {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     图标名称
-                    <a 
-                      href="https://lucide.dev/icons/" 
-                      target="_blank" 
+                    <a
+                      href="https://lucide.dev/icons/"
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="ml-2 text-xs text-primary-600 dark:text-primary-400 hover:underline"
                     >
@@ -334,7 +334,7 @@ export default function GroupManager({ groups = [], onAdd, onEdit, onDelete }) {
                       {(() => {
                         const IconComponent = getLucideIcon(formData.icon);
                         return IconComponent ? (
-                          <IconComponent 
+                          <IconComponent
                             className="w-6 h-6"
                             style={{ color: formData.iconColor }}
                           />
@@ -383,7 +383,7 @@ export default function GroupManager({ groups = [], onAdd, onEdit, onDelete }) {
         </AnimatePresence>,
         document.body
       )}
-      
+
       <Dialog
         isOpen={dialog.isOpen}
         onClose={closeDialog}

@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save } from 'lucide-react';
+import {
+  modalVariants,
+  modalTransition,
+  backdropVariants,
+  backdropTransition
+} from '../utils/animations';
 
 export default function SettingsModal({ onClose, onSave, currentSettings }) {
   const [historyHours, setHistoryHours] = useState(currentSettings?.historyHours || 24);
@@ -8,7 +14,7 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({ 
+    onSave({
       historyHours: parseInt(historyHours),
       retentionHours: parseInt(retentionHours)
     });
@@ -16,12 +22,21 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        initial={backdropVariants.initial}
+        animate={backdropVariants.animate}
+        exit={backdropVariants.exit}
+        transition={backdropTransition}
+        onClick={onClose}
+      >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="w-full max-w-md bg-white dark:bg-[#222] rounded-2xl shadow-2xl"
+          initial={modalVariants.initial}
+          animate={modalVariants.animate}
+          exit={modalVariants.exit}
+          transition={modalTransition}
+          className="glass-card w-full max-w-md"
+          onClick={(e) => e.stopPropagation()}
         >
           {/* 标题栏 */}
           <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
@@ -106,7 +121,7 @@ export default function SettingsModal({ onClose, onSave, currentSettings }) {
             </div>
           </form>
         </motion.div>
-      </div>
+      </motion.div>
     </AnimatePresence>
   );
 }
