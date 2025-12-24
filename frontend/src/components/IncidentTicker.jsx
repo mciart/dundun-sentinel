@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, CheckCircle, ShieldAlert } from 'lucide-react';
 import { api } from '../utils/api';
 import { formatDateTime } from '../utils/helpers';
+import { getStatusClasses } from '../utils/status';
 
 export const INCIDENT_ICONS = {
   down: AlertTriangle,
@@ -10,20 +11,6 @@ export const INCIDENT_ICONS = {
   cert_warning: ShieldAlert,
 };
 
-export const INCIDENT_COLORS = {
-  down: {
-    bg: 'bg-red-100 dark:bg-red-900/30',
-    text: 'text-red-600 dark:text-red-300',
-  },
-  recovered: {
-    bg: 'bg-emerald-100 dark:bg-emerald-900/20',
-    text: 'text-emerald-600 dark:text-emerald-300',
-  },
-  cert_warning: {
-    bg: 'bg-amber-100 dark:bg-amber-900/20',
-    text: 'text-amber-600 dark:text-amber-300',
-  },
-};
 
 export const INCIDENT_LABELS = {
   down: '站点离线',
@@ -106,7 +93,15 @@ export default function IncidentTicker({ autoRefreshInterval = 60_000 }) {
           {latest.map((incident) => {
             const key = buildKey(incident);
             const Icon = INCIDENT_ICONS[incident.type] || AlertTriangle;
-            const color = INCIDENT_COLORS[incident.type] || INCIDENT_COLORS.down;
+
+            // Map incident type to status type for style reuse
+            const statusType =
+              incident.type === 'down' ? 'offline' :
+                incident.type === 'recovered' ? 'online' :
+                  incident.type === 'cert_warning' ? 'slow' : 'unknown';
+
+            const colorClasses = getStatusClasses(statusType);
+
             return (
               <motion.div
                 key={key}
@@ -114,20 +109,20 @@ export default function IncidentTicker({ autoRefreshInterval = 60_000 }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
-                className={`rounded-xl px-3 py-2 flex items-start gap-3 ${color.bg}`}
+                className={`rounded-xl px-3 py-2 flex items-start gap-3 ${colorClasses}`}
               >
-                <div className={`mt-0.5 rounded-full p-1 ${color.text} bg-white/70 dark:bg-black/30 shadow`}> 
+                <div className={`mt-0.5 rounded-full p-1 bg-white/70 dark:bg-black/30 shadow`}>
                   <Icon className="w-4 h-4" />
                 </div>
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-sm font-semibold ${color.text}`}>{INCIDENT_LABELS[incident.type] || '通知'}</span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">{formatDateTime(incident.createdAt)}</span>
+                    <span className={`text-sm font-semibold`}>{INCIDENT_LABELS[incident.type] || '通知'}</span>
+                    <span className="text-xs opacity-80">{formatDateTime(incident.createdAt)}</span>
                   </div>
-                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                  <div className="text-sm font-medium truncate">
                     {incident.siteName}
                   </div>
-                  <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  <div className="text-xs opacity-90 leading-relaxed">
                     {incident.message}
                     {incident.type === 'down' && incident.responseTime ? `（耗时 ${incident.responseTime}ms）` : ''}
                     {incident.type === 'cert_warning' && typeof incident.daysLeft === 'number' && incident.daysLeft >= 0 ? `（剩余 ${incident.daysLeft} 天）` : ''}

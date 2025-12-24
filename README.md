@@ -1,6 +1,6 @@
 <div align="center">
 
-# 炖炖哨兵（测试版）
+# 炖炖哨兵
 
 **dundun-sentinel**
 

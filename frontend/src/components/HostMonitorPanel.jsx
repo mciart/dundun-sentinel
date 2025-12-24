@@ -27,6 +27,7 @@ import {
   backdropTransition,
   closeButtonHover
 } from '../utils/animations';
+import { getStatusDotClass, getStatusClasses, getStatusLabel } from '../utils/status';
 
 /**
  * 主机监控面板组件
@@ -221,9 +222,7 @@ function HostListItem({ site, onClick, onDragEnd, canDrag }) {
       )}
 
       {/* 状态指示点 */}
-      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-emerald-500' :
-        isOffline ? 'bg-red-500' : 'bg-slate-400'
-        }`} />
+      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotClass(site.status)}`} />
 
       {/* 主机名称和状态 */}
       <div
@@ -270,11 +269,8 @@ function HostListItem({ site, onClick, onDragEnd, canDrag }) {
         </div>
 
         {/* 状态标签 */}
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isOnline ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
-          isOffline ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-            'bg-slate-200/80 dark:bg-dark-layer text-slate-600 dark:text-slate-400'
-          }`}>
-          {isOnline ? '在线' : isOffline ? '离线' : '等待'}
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusClasses(site.status)}`}>
+          {getStatusLabel(site.status)}
         </span>
       </div>
 
@@ -284,11 +280,8 @@ function HostListItem({ site, onClick, onDragEnd, canDrag }) {
         onClick={(e) => { e.stopPropagation(); onClick(); }}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isOnline ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
-          isOffline ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-            'bg-slate-200/80 dark:bg-dark-layer text-slate-600 dark:text-slate-400'
-          }`}>
-          {isOnline ? '在线' : isOffline ? '离线' : '等待'}
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusClasses(site.status)}`}>
+          {getStatusLabel(site.status)}
         </span>
       </div>
     </Reorder.Item>
@@ -326,9 +319,7 @@ function HostListItemStatic({ site, onClick }) {
       className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors bg-white dark:bg-transparent cursor-pointer"
     >
       {/* 状态指示点 */}
-      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-emerald-500' :
-        isOffline ? 'bg-red-500' : 'bg-slate-400'
-        }`} />
+      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusDotClass(site.status)}`} />
 
       {/* 主机名称和状态 */}
       <div className="flex-1 min-w-0">
@@ -363,21 +354,15 @@ function HostListItemStatic({ site, onClick }) {
           </span>
         </div>
 
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isOnline ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
-          isOffline ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-            'bg-slate-200/80 dark:bg-dark-layer text-slate-600 dark:text-slate-400'
-          }`}>
-          {isOnline ? '在线' : isOffline ? '离线' : '等待'}
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusClasses(site.status)}`}>
+          {getStatusLabel(site.status)}
         </span>
       </div>
 
       {/* 移动端简化显示 */}
       <div className="sm:hidden flex items-center gap-2">
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isOnline ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
-          isOffline ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-            'bg-slate-200/80 dark:bg-dark-layer text-slate-600 dark:text-slate-400'
-          }`}>
-          {isOnline ? '在线' : isOffline ? '离线' : '等待'}
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusClasses(site.status)}`}>
+          {getStatusLabel(site.status)}
         </span>
       </div>
     </div>
@@ -441,17 +426,13 @@ function HostCard({ site, onClick, index = 0 }) {
     >
       {/* 状态指示条 */}
       <div
-        className={`absolute top-0 left-0 right-0 h-1 ${isOnline ? 'bg-emerald-500' : isOffline ? 'bg-red-500' : 'bg-slate-400'
-          }`}
+        className={`absolute top-0 left-0 right-0 h-1 ${getStatusDotClass(site.status)}`}
       />
 
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div
-            className={`p-1.5 rounded-lg ${isOnline ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' :
-              isOffline ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
-                'bg-slate-200/80 dark:bg-dark-layer text-slate-500'
-              }`}
+            className={`p-1.5 rounded-lg ${getStatusClasses(site.status)}`}
           >
             {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
           </div>
@@ -469,12 +450,10 @@ function HostCard({ site, onClick, index = 0 }) {
           <div
             className={`
               px-2 py-0.5 rounded-full text-xs font-medium
-              ${isOnline ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
-                isOffline ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' :
-                  'bg-slate-200/80 dark:bg-dark-layer text-slate-600 dark:text-slate-400'}
+              ${getStatusClasses(site.status)}
             `}
           >
-            {isOnline ? '在线' : isOffline ? '离线' : '等待'}
+            {getStatusLabel(site.status)}
           </div>
         </div>
       </div>
@@ -687,10 +666,7 @@ function HostDetailModal({ site, onClose }) {
         <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-              <div className={`p-1.5 sm:p-2 rounded-xl shrink-0 ${site.status === 'online'
-                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
-                : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                }`}>
+              <div className={`p-1.5 sm:p-2 rounded-xl shrink-0 ${getStatusClasses(site.status)}`}>
                 <Server className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div className="min-w-0 flex-1">

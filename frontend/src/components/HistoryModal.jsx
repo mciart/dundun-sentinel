@@ -9,6 +9,8 @@ import {
   backdropTransition,
   closeButtonHover
 } from '../utils/animations';
+import { getStatusClasses, getStatusDotClass, getStatusLabel } from '../utils/status';
+import HistoryChart from './HistoryChart';
 
 export default function HistoryModal({ site, onClose }) {
   const [history, setHistory] = useState([]);
@@ -168,6 +170,13 @@ export default function HistoryModal({ site, onClose }) {
             </div>
           )}
 
+          {/* 趋势图表 */}
+          {!loading && history && history.length > 0 && (
+            <div className="px-6 pb-2">
+              <HistoryChart data={history} />
+            </div>
+          )}
+
           {/* 状态筛选按钮 */}
           {!loading && (
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
@@ -263,14 +272,9 @@ export default function HistoryModal({ site, onClose }) {
                     second: '2-digit'
                   });
 
-                  const statusColor =
-                    record.status === 'online' ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' :
-                      record.status === 'slow' ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' :
-                        'text-red-600 bg-red-50 dark:bg-red-900/20';
-
-                  const statusText =
-                    record.status === 'online' ? '正常' :
-                      record.status === 'slow' ? '缓慢' : '异常';
+                  const statusClasses = getStatusClasses(record.status);
+                  const statusDotClass = getStatusDotClass(record.status);
+                  const statusLabel = getStatusLabel(record.status);
 
                   return (
                     <motion.div
@@ -280,9 +284,7 @@ export default function HistoryModal({ site, onClose }) {
                       className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${record.status === 'online' ? 'bg-emerald-500' :
-                          record.status === 'slow' ? 'bg-amber-500' : 'bg-red-500'
-                          }`} />
+                        <div className={`w-2 h-2 rounded-full ${statusDotClass}`} />
                         <div>
                           <div className="text-sm font-medium text-slate-900 dark:text-white">
                             {dateStr} {timeStr}
@@ -290,8 +292,8 @@ export default function HistoryModal({ site, onClose }) {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor}`}>
-                          {statusText}
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusClasses}`}>
+                          {statusLabel}
                         </span>
                         <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
                           <Clock className="w-3 h-3" />

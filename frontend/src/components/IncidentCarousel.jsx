@@ -4,7 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, ChevronRight } from 'lucide-react';
 import { api } from '../utils/api';
 import { formatDateTime } from '../utils/helpers';
-import { INCIDENT_COLORS, INCIDENT_ICONS, INCIDENT_LABELS } from './IncidentTicker';
+import { getStatusClasses } from '../utils/status';
+import { INCIDENT_ICONS, INCIDENT_LABELS } from './IncidentTicker';
 
 const SLIDE_DURATION = 2000;
 
@@ -97,12 +98,17 @@ export default function IncidentCarousel({ limit = 20, autoInterval = SLIDE_DURA
   const isEmpty = !loading && incidents.length === 0;
 
   const Icon = currentIncident ? (INCIDENT_ICONS[currentIncident.type] || null) : null;
-  const palette = currentIncident
-    ? (INCIDENT_COLORS[currentIncident.type] || INCIDENT_COLORS.down)
-    : null;
   const label = currentIncident
     ? (INCIDENT_LABELS[currentIncident.type] || '通知')
     : '通知';
+
+  const statusType = currentIncident ? (
+    currentIncident.type === 'down' ? 'offline' :
+      currentIncident.type === 'recovered' ? 'online' :
+        currentIncident.type === 'cert_warning' ? 'slow' : 'unknown'
+  ) : 'unknown';
+
+  const statusClasses = getStatusClasses(statusType);
 
   return (
     <div
@@ -113,13 +119,13 @@ export default function IncidentCarousel({ limit = 20, autoInterval = SLIDE_DURA
       onTouchEnd={() => setIsPaused(false)}
     >
       <div className="flex items-center gap-4 px-6 py-3">
-        <div 
+        <div
           className="flex-shrink-0 text-black dark:text-white cursor-pointer transition-transform duration-200 hover:scale-110 hover:rotate-12"
         >
           <Bell className="w-5 h-5" />
         </div>
 
-        <div 
+        <div
           className="flex-1 min-w-0 cursor-pointer group/content transition-colors"
           onClick={() => navigate('/incidents')}
         >
@@ -142,7 +148,7 @@ export default function IncidentCarousel({ limit = 20, autoInterval = SLIDE_DURA
                     className="absolute inset-0 flex items-center justify-center"
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium text-xs ${palette?.bg} ${palette?.text} flex-shrink-0`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium text-xs ${statusClasses} flex-shrink-0`}>
                         {label}
                       </span>
                       <span className="font-medium text-base text-slate-900 dark:text-slate-100 group-hover/content:text-[#425AEF] dark:group-hover/content:text-[#FF953E] transition-colors truncate">
@@ -156,7 +162,7 @@ export default function IncidentCarousel({ limit = 20, autoInterval = SLIDE_DURA
           )}
         </div>
 
-        <div 
+        <div
           className="flex-shrink-0 cursor-pointer transition-transform duration-200 hover:translate-x-1 hover:scale-110 active:scale-90"
           onClick={() => navigate('/incidents')}
         >

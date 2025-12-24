@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useHistory } from '../context/HistoryContext';
+import { getStatusLabel, getStatusDotClass } from '../utils/status';
 
 const CONFIG = {
   BLOCK_WIDTH: 16,
@@ -16,7 +17,7 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
   const [hoveredBlock, setHoveredBlock] = useState(null);
   const [visibleCount, setVisibleCount] = useState(0);
   const [blockGap, setBlockGap] = useState(CONFIG.MIN_BLOCK_GAP);
-  
+
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const blocksRef = useRef([]);
@@ -27,41 +28,46 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
 
   const getBlockColors = useCallback((record, isDark = false) => {
     if (!record || record.status === 'empty') {
-      return isDark 
+      return isDark
         ? { bg: 'rgba(71, 85, 105, 0.3)', hover: 'rgba(71, 85, 105, 0.4)' }
         : { bg: 'rgba(148, 163, 184, 0.35)', hover: 'rgba(148, 163, 184, 0.45)' };
     }
-    
+
     const status = record.status;
     const responseTime = record.responseTime || 0;
-    
+
     if (status === 'offline') {
       return { bg: 'rgb(239, 68, 68)', hover: 'rgb(220, 38, 38)' };
     }
-    
+
     if (status === 'slow') {
       return responseTime > 15000
         ? { bg: 'rgb(249, 115, 22)', hover: 'rgb(234, 88, 12)' }
         : { bg: 'rgb(251, 191, 36)', hover: 'rgb(245, 158, 11)' };
     }
-    
+
     if (status === 'online') {
       return responseTime > 1500
         ? { bg: 'rgb(52, 211, 153)', hover: 'rgb(16, 185, 129)' }
         : { bg: 'rgb(5, 150, 105)', hover: 'rgb(4, 120, 87)' };
     }
-    
+
     return isDark
       ? { bg: 'rgba(71, 85, 105, 0.3)', hover: 'rgba(71, 85, 105, 0.4)' }
       : { bg: 'rgba(148, 163, 184, 0.35)', hover: 'rgba(148, 163, 184, 0.45)' };
   }, []);
 
+
   const getStatusConfig = useCallback((status) => {
+    const dotClass = getStatusDotClass(status);
+    const label = getStatusLabel(status);
+    const colorClass = getStatusTextColor(status);
+
     return {
-      online: { text: '正常运行', color: 'text-emerald-600', dotColor: 'bg-emerald-500' },
-      slow: { text: '响应缓慢', color: 'text-amber-600', dotColor: 'bg-amber-500' },
-      offline: { text: '服务异常', color: 'text-red-600', dotColor: 'bg-red-500' },
-    }[status] || { text: '服务异常', color: 'text-red-600', dotColor: 'bg-red-500' };
+      text: label,
+      color: colorClass,
+      dotColor: dotClass.replace('shadow-sm', '').trim() // Remove shadow if not needed or keep it
+    };
   }, []);
 
   const getDisplayText = useCallback((record) => {
@@ -106,14 +112,14 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
   const measureVisible = useCallback(() => {
     const el = containerRef.current;
     if (!el) return { count: 0, gap: CONFIG.MIN_BLOCK_GAP };
-    
+
     const style = getComputedStyle(el);
     const paddingLeft = parseFloat(style.paddingLeft) || 0;
     const paddingRight = parseFloat(style.paddingRight) || 0;
     const inner = el.clientWidth - paddingLeft - paddingRight;
-    
+
     const count = Math.max(1, Math.floor((inner + CONFIG.MIN_BLOCK_GAP) / (CONFIG.BLOCK_WIDTH + CONFIG.MIN_BLOCK_GAP)));
-    
+
     let actualGap = CONFIG.MIN_BLOCK_GAP;
     if (count > 1) {
       const totalBlockWidth = count * CONFIG.BLOCK_WIDTH;
@@ -121,7 +127,7 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
       actualGap = availableGapSpace / (count - 1);
       actualGap = Math.max(CONFIG.MIN_BLOCK_GAP, Math.min(CONFIG.MAX_BLOCK_GAP, actualGap));
     }
-    
+
     setVisibleCount(count);
     setBlockGap(actualGap);
     return { count, gap: actualGap };
@@ -143,12 +149,12 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
 
   const blocksToRender = useMemo(() => {
     if (visibleCount === 0) return [];
-    
+
     if (!history || history.length === 0) {
-      return Array.from({ length: visibleCount }, () => ({ 
-        status: 'empty', 
-        timestamp: null, 
-        responseTime: 0 
+      return Array.from({ length: visibleCount }, () => ({
+        status: 'empty',
+        timestamp: null,
+        responseTime: 0
       }));
     }
 
@@ -156,10 +162,10 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
     const pad = visibleCount - tail.length;
 
     if (pad > 0) {
-      const emptyBlocks = Array.from({ length: pad }, () => ({ 
-        status: 'empty', 
-        timestamp: null, 
-        responseTime: 0 
+      const emptyBlocks = Array.from({ length: pad }, () => ({
+        status: 'empty',
+        timestamp: null,
+        responseTime: 0
       }));
       return [...emptyBlocks, ...tail];
     }
@@ -176,7 +182,7 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
 
     const ctx = canvas.getContext('2d', { alpha: true });
     const dpr = window.devicePixelRatio || 1;
-   
+
     const containerRect = container?.getBoundingClientRect();
     const baseRect = (containerRect && containerRect.width > 0 && containerRect.height > 0)
       ? containerRect
@@ -186,20 +192,20 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
     canvas.width = baseRect.width * dpr;
     canvas.height = baseRect.height * dpr;
     ctx.scale(dpr, dpr);
-    
+
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, baseRect.width, baseRect.height);
-    
+
     const isDark = document.documentElement.classList.contains('dark');
     const blockHeight = baseRect.height;
-    
+
     activeBlocks.forEach((record, index) => {
       const x = index * (CONFIG.BLOCK_WIDTH + blockGap);
       const { bg: color } = getBlockColors(record, isDark);
 
       ctx.save();
-      
+
 
       const hi = hoveredIndexRef.current;
       if (hi !== null && hi !== index && record.status !== 'empty') {
@@ -207,7 +213,7 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
       } else {
         ctx.globalAlpha = 1;
       }
-      
+
       ctx.fillStyle = color;
 
 
@@ -277,7 +283,7 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
       attributes: true,
       attributeFilter: ['class']
     });
-    
+
     return () => themeObserver.disconnect();
   }, [drawCanvas]);
 
@@ -290,10 +296,10 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
 
   useEffect(() => {
     if (!onAverageResponseTime || blocksToRender.length === 0) return;
-    
+
     const validBlocks = blocksToRender.filter(block => block.status !== 'empty');
     if (validBlocks.length === 0) return;
-    
+
     const totalResponseTime = validBlocks.reduce((sum, block) => sum + (block.responseTime || 0), 0);
     const average = Math.round(totalResponseTime / validBlocks.length);
     onAverageResponseTime(average);
@@ -455,16 +461,16 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
   }, [hoveredBlock]);
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className="relative flex justify-center gap-1 h-12 items-center rounded-xl py-2 overflow-visible"
       onPointerLeave={handlePointerLeave}
     >
       <canvas
         ref={canvasRef}
         className="cursor-pointer"
-        style={{ 
-          width: '100%', 
+        style={{
+          width: '100%',
           height: '100%',
           display: 'block',
           imageRendering: '-webkit-optimize-contrast',
@@ -477,7 +483,7 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
         onPointerLeave={handlePointerLeave}
         onPointerCancel={handlePointerCancel}
       />
-      
+
       <AnimatePresence>
         {hoveredBlock && tooltipStyle && (
           <div className="absolute pointer-events-none isolate" style={tooltipStyle}>
@@ -496,7 +502,7 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
                   {hoveredBlock.timeString}
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-3 pt-1.5 border-t border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-2">
                   <div className="relative flex items-center justify-center">
@@ -507,9 +513,9 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
                     {getDisplayText(hoveredBlock.record)}
                   </span>
                 </div>
-                
+
                 <div className="w-px h-4 bg-slate-200 dark:bg-dark-layer"></div>
-                
+
                 <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                   {hoveredBlock.record.responseTime}ms
                 </div>

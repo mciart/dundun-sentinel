@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { api } from '../utils/api';
 import { formatDateTime } from '../utils/helpers';
-import { INCIDENT_COLORS, INCIDENT_ICONS, INCIDENT_LABELS } from '../components/IncidentTicker';
+import { getStatusClasses } from '../utils/status';
+import { INCIDENT_ICONS, INCIDENT_LABELS } from '../components/IncidentTicker';
 
 const TYPE_OPTIONS = [
   { value: 'all', label: '全部类型' },
@@ -163,10 +164,10 @@ export default function IncidentsPage() {
                   key={month}
                   type="button"
                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 ${isActive
-                      ? 'bg-primary-500 text-white shadow-lg scale-105'
-                      : isAvailable
-                        ? 'glass-card hover:shadow-lg'
-                        : 'glass-card opacity-40 cursor-not-allowed'
+                    ? 'bg-primary-500 text-white shadow-lg scale-105'
+                    : isAvailable
+                      ? 'glass-card hover:shadow-lg'
+                      : 'glass-card opacity-40 cursor-not-allowed'
                     }`}
                   onClick={() => isAvailable && setSelectedMonth(month)}
                   disabled={!isAvailable}
@@ -209,8 +210,15 @@ export default function IncidentsPage() {
           >
             {filteredIncidents.map((incident, index) => {
               const Icon = INCIDENT_ICONS[incident.type];
-              const palette = INCIDENT_COLORS[incident.type] || INCIDENT_COLORS.down;
               const label = INCIDENT_LABELS[incident.type] || '通知';
+
+              const statusType =
+                incident.type === 'down' ? 'offline' :
+                  incident.type === 'recovered' ? 'online' :
+                    incident.type === 'cert_warning' ? 'slow' : 'unknown';
+
+              const statusClasses = getStatusClasses(statusType);
+
               const extraInfo = [];
               if (incident.type === 'down' && incident.responseTime) {
                 extraInfo.push(`耗时 ${incident.responseTime}ms`);
@@ -229,14 +237,14 @@ export default function IncidentsPage() {
                   className="glass-card flex items-start gap-3 sm:gap-4 px-4 sm:px-6 py-3.5 sm:py-5 transition-all duration-200 hover:shadow-lg"
                 >
                   <div
-                    className={`flex-shrink-0 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl shadow-inner ${palette.bg} ${palette.text}`}
+                    className={`flex-shrink-0 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl shadow-inner ${statusClasses}`}
                   >
                     {Icon && <Icon className="w-5 h-5 sm:w-6 sm:h-6" />}
                   </div>
                   <div className="flex-1 min-w-0 space-y-1 sm:space-y-1.5">
                     <div className="flex items-center gap-2 sm:gap-3">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${palette.bg} ${palette.text}`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${statusClasses}`}
                       >
                         {label}
                       </span>

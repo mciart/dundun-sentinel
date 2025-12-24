@@ -1,5 +1,5 @@
 import { Shield, ShieldAlert, ShieldCheck, Globe, Server, Mail } from 'lucide-react';
-import { formatResponseTime, getStatusText, getStatusBgColor } from '../utils/helpers';
+import { getStatusHoverBg, getStatusDotClassWithShadow } from '../utils/status';
 import StatusBar from './StatusBarCanvas';
 
 export default function SiteCard({ site, index }) {
@@ -15,46 +15,27 @@ export default function SiteCard({ site, index }) {
     }
   };
 
-  const getOverlayHoverBg = () => {
-    switch (site.status) {
-      case 'online':
-        return 'group-hover:bg-emerald-50/80 dark:group-hover:bg-emerald-950/30';
-      case 'slow':
-        return 'group-hover:bg-amber-50/80 dark:group-hover:bg-amber-950/30';
-      case 'offline':
-        return 'group-hover:bg-red-50/80 dark:group-hover:bg-red-950/30';
-      default:
-        return 'group-hover:bg-slate-50/80 dark:group-hover:bg-slate-800/30';
-    }
-  };
-
-  // 状态指示灯的颜色配置
-  const statusDotConfig = {
-    online: 'bg-emerald-500 shadow-emerald-500/50',
-    offline: 'bg-red-500 shadow-red-500/50',
-    slow: 'bg-amber-500 shadow-amber-500/50',
-    unknown: 'bg-slate-400'
-  };
+  const overlayHoverBg = getStatusHoverBg(site.status);
+  const statusDotClass = getStatusDotClassWithShadow(site.status);
 
   return (
-    <div 
+    <div
       className={`site-card group px-4 py-3 transition-all duration-150 ease-out`}
     >
-      <div className={`absolute inset-0 rounded-2xl pointer-events-none transition-all duration-300 ${getOverlayHoverBg()}`} />
+      <div className={`absolute inset-0 rounded-2xl pointer-events-none transition-all duration-300 ${overlayHoverBg}`} />
       <div className="relative z-[1]">
         {/* 站点信息 */}
         <div className="flex items-center justify-between mb-2 isolate gap-2">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
             {/* 状态指示灯 */}
-            <div 
-              className={`w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-md ${statusDotConfig[site.status] || statusDotConfig.unknown} ${site.status === 'online' ? 'animate-pulse' : ''}`}
+            <div
+              className={`w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-md ${statusDotClass} ${site.status === 'online' ? 'animate-pulse' : ''}`}
             />
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
               <h3 className="text-base sm:text-lg font-medium text-slate-800 dark:text-slate-200 truncate">
                 <span
-                  className={`transition-all duration-200 ${
-                    site.showUrl ? 'cursor-pointer hover:text-[#425AEF] dark:hover:text-[#FF953E]' : ''
-                  }`}
+                  className={`transition-all duration-200 ${site.showUrl ? 'cursor-pointer hover:text-[#425AEF] dark:hover:text-[#FF953E]' : ''
+                    }`}
                   onClick={site.showUrl ? handleSiteClick : undefined}
                   style={{ textRendering: 'optimizeLegibility', WebkitFontSmoothing: 'antialiased', display: 'inline-block' }}
                   title={site.name}
@@ -62,7 +43,7 @@ export default function SiteCard({ site, index }) {
                   {site.name}
                 </span>
               </h3>
-              
+
               {/* DNS 监控标识 */}
               {isDns && (
                 <div className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 flex-shrink-0 transition-transform hover:scale-105">
@@ -86,7 +67,7 @@ export default function SiteCard({ site, index }) {
                   <span>SMTP</span>
                 </div>
               )}
-              
+
               {/* SSL证书状态 (仅 HTTP 监控显示) */}
               {!isDns && !isPush && !isSmtp && site.sslCertLastCheck > 0 && site.sslCert && daysLeft !== null && (
                 <div className={`
@@ -94,10 +75,10 @@ export default function SiteCard({ site, index }) {
                   ${certExpired
                     ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
                     : daysLeft >= 30
-                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                    : daysLeft >= 7
-                    ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                    : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                      : daysLeft >= 7
+                        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                        : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
                   }
                 `}>
                   {!certExpired && daysLeft >= 30 ? (
@@ -112,7 +93,7 @@ export default function SiteCard({ site, index }) {
                   </span>
                 </div>
               )}
-              
+
               {/* 无证书状态 (仅 HTTP 监控显示) */}
               {!isDns && !isPush && !isSmtp && site.sslCertLastCheck > 0 && !site.sslCert && (
                 <div className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 flex-shrink-0 transition-transform hover:scale-105">
