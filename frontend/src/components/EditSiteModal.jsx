@@ -28,6 +28,8 @@ const MONITOR_TYPES = [
   { value: 'dns', label: 'DNS', description: '监控域名 DNS 记录' },
   { value: 'tcp', label: 'TCP 端口', description: '监控端口连通性' },
   { value: 'smtp', label: 'SMTP', description: '监控邮件服务器可用性' },
+  { value: 'mysql', label: 'MySQL', description: '监控 MySQL 数据库可用性' },
+  { value: 'postgres', label: 'PostgreSQL', description: '监控 PostgreSQL 数据库可用性' },
   { value: 'push', label: 'Push 心跳', description: '被动接收主机心跳' },
 ];
 
@@ -76,6 +78,9 @@ export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) 
     smtpHost: site.smtpHost || '',
     smtpPort: site.smtpPort || '25',
     smtpSecurity: site.smtpSecurity || 'starttls',
+    // 数据库相关
+    dbHost: site.dbHost || '',
+    dbPort: site.dbPort || '',
     // Push 相关
     pushTimeoutMinutes: site.pushTimeoutMinutes || 3,
     showInHostPanel: site.showInHostPanel !== false  // 默认为 true
@@ -197,7 +202,11 @@ export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) 
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  {formData.monitorType === 'dns' ? '域名 *' : (formData.monitorType === 'tcp' || formData.monitorType === 'smtp') ? '主机名 *' : formData.monitorType === 'push' ? '主机名称 *' : '站点 URL *'}
+                  {formData.monitorType === 'dns' ? '域名 *'
+                    : (formData.monitorType === 'tcp' || formData.monitorType === 'smtp') ? '主机名 *'
+                      : (formData.monitorType === 'mysql' || formData.monitorType === 'postgres') ? '数据库主机 *'
+                        : formData.monitorType === 'push' ? '主机名称 *'
+                          : '站点 URL *'}
                 </label>
                 {formData.monitorType === 'push' ? (
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
@@ -210,6 +219,15 @@ export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) 
                     onChange={(e) => setFormData({ ...formData, smtpHost: e.target.value })}
                     className="input-field"
                     placeholder="smtp.example.com"
+                    required
+                  />
+                ) : (formData.monitorType === 'mysql' || formData.monitorType === 'postgres') ? (
+                  <input
+                    type="text"
+                    value={formData.dbHost}
+                    onChange={(e) => setFormData({ ...formData, dbHost: e.target.value })}
+                    className="input-field"
+                    placeholder="db.example.com"
                     required
                   />
                 ) : (
@@ -425,6 +443,114 @@ export default function EditSiteModal({ site, onClose, onSubmit, groups = [] }) 
                     <p className="mt-2 text-amber-600 dark:text-amber-400">⚠️ 这些方式都不会导致实际发送电子邮件。</p>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-cyan-200 dark:border-cyan-800">
+                    <div>
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        反转模式
+                      </label>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        开启后，服务可访问视为故障，不可访问视为正常
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, inverted: !formData.inverted })}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${formData.inverted
+                        ? 'bg-amber-500'
+                        : 'bg-slate-300 dark:bg-slate-600'
+                        }`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formData.inverted ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* MySQL 数据库配置 - 橙黄色主题 */}
+              {formData.monitorType === 'mysql' && (
+                <div className="grid grid-cols-1 gap-4 p-4 rounded-xl bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-sm font-medium">
+                    <Server className="w-4 h-4" />
+                    MySQL 数据库配置
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      端口
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.dbPort}
+                      onChange={(e) => setFormData({ ...formData, dbPort: e.target.value })}
+                      className="input-field"
+                      placeholder="3306"
+                    />
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      留空使用默认端口 3306
+                    </p>
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 p-3 rounded-lg bg-slate-200/80 dark:bg-dark-layer">
+                    <p className="font-medium mb-1">💡 监控说明：</p>
+                    <ul className="space-y-1 list-disc list-inside">
+                      <li>通过 TCP 连接验证数据库服务是否可达</li>
+                      <li>会检测 MySQL 协议握手包确认服务类型</li>
+                      <li>不会发送用户名/密码，不会执行任何查询</li>
+                    </ul>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-amber-200 dark:border-amber-800">
+                    <div>
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        反转模式
+                      </label>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        开启后，服务可访问视为故障，不可访问视为正常
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, inverted: !formData.inverted })}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${formData.inverted
+                        ? 'bg-amber-500'
+                        : 'bg-slate-300 dark:bg-slate-600'
+                        }`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formData.inverted ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* PostgreSQL 数据库配置 - 蓝色主题 */}
+              {formData.monitorType === 'postgres' && (
+                <div className="grid grid-cols-1 gap-4 p-4 rounded-xl bg-sky-50/50 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-800">
+                  <div className="flex items-center gap-2 text-sky-700 dark:text-sky-300 text-sm font-medium">
+                    <Server className="w-4 h-4" />
+                    PostgreSQL 数据库配置
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      端口
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.dbPort}
+                      onChange={(e) => setFormData({ ...formData, dbPort: e.target.value })}
+                      className="input-field"
+                      placeholder="5432"
+                    />
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      留空使用默认端口 5432
+                    </p>
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 p-3 rounded-lg bg-slate-200/80 dark:bg-dark-layer">
+                    <p className="font-medium mb-1">💡 监控说明：</p>
+                    <ul className="space-y-1 list-disc list-inside">
+                      <li>通过 TCP 连接验证数据库服务是否可达</li>
+                      <li>会发送启动消息验证 PostgreSQL 协议</li>
+                      <li>不会发送用户名/密码，不会执行任何查询</li>
+                    </ul>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-sky-200 dark:border-sky-800">
                     <div>
                       <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         反转模式

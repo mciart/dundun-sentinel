@@ -105,6 +105,9 @@ export async function getAllSites(env) {
     smtpHost: row.smtp_host,
     smtpPort: row.smtp_port,
     smtpSecurity: row.smtp_security,
+    // Database (MySQL/PostgreSQL)
+    dbHost: row.db_host,
+    dbPort: row.db_port,
     // Push
     pushToken: row.push_token,
     pushInterval: row.push_interval,
@@ -160,6 +163,8 @@ export async function getSite(env, siteId) {
     smtpHost: row.smtp_host,
     smtpPort: row.smtp_port,
     smtpSecurity: row.smtp_security,
+    dbHost: row.db_host,
+    dbPort: row.db_port,
     pushToken: row.push_token,
     pushInterval: row.push_interval,
     lastHeartbeat: row.last_heartbeat,
@@ -186,9 +191,10 @@ export async function createSite(env, site) {
       dns_record_type, dns_expected_value, dns_server, dns_server_custom,
       tcp_host, tcp_port,
       smtp_host, smtp_port, smtp_security,
+      db_host, db_port,
       push_token, push_interval, last_heartbeat, push_data, show_in_host_panel,
       ssl_cert, ssl_cert_last_check, notify_enabled, inverted, last_message
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     site.id,
     site.name,
@@ -215,6 +221,8 @@ export async function createSite(env, site) {
     site.smtpHost || null,
     site.smtpPort || MONITOR.defaultSmtpPort,
     site.smtpSecurity || 'starttls',
+    site.dbHost || null,
+    site.dbPort || null,
     site.pushToken || null,
     site.pushInterval || 60,
     site.lastHeartbeat || 0,
@@ -246,6 +254,7 @@ export async function updateSite(env, siteId, updates) {
       dns_record_type = ?, dns_expected_value = ?, dns_server = ?, dns_server_custom = ?,
       tcp_host = ?, tcp_port = ?,
       smtp_host = ?, smtp_port = ?, smtp_security = ?,
+      db_host = ?, db_port = ?,
       push_token = ?, push_interval = ?, last_heartbeat = ?, push_data = ?, show_in_host_panel = ?,
       ssl_cert = ?, ssl_cert_last_check = ?, notify_enabled = ?, inverted = ?, last_message = ?
     WHERE id = ?
@@ -274,6 +283,8 @@ export async function updateSite(env, siteId, updates) {
     merged.smtpHost,
     merged.smtpPort || 25,
     merged.smtpSecurity || 'starttls',
+    merged.dbHost,
+    merged.dbPort,
     merged.pushToken,
     merged.pushInterval,
     merged.lastHeartbeat,
@@ -1151,6 +1162,16 @@ async function runMigrations(env) {
   if (!sitesCols.has('host_sort_order')) {
     migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN host_sort_order INTEGER DEFAULT 0'));
     console.log('  + 添加 sites.host_sort_order 列');
+  }
+
+  // 检查 db_host 和 db_port 列（MySQL/PostgreSQL 监控）
+  if (!sitesCols.has('db_host')) {
+    migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN db_host TEXT'));
+    console.log('  + 添加 sites.db_host 列');
+  }
+  if (!sitesCols.has('db_port')) {
+    migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN db_port INTEGER'));
+    console.log('  + 添加 sites.db_port 列');
   }
 
   // 检查 incidents 表缺失的列

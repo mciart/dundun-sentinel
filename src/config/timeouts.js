@@ -10,6 +10,10 @@ export const TIMEOUTS = {
   smtpTimeout: 30000,
   // DNS 查询超时（毫秒）
   dnsTimeout: 5000,
+  // MySQL 监控超时（毫秒）
+  mysqlTimeout: 15000,
+  // PostgreSQL 监控超时（毫秒）
+  postgresTimeout: 15000,
 };
 
 export const INTERVALS = {

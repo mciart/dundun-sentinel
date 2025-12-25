@@ -13,6 +13,16 @@ export const RESPONSE_TIME = {
     slow: 5000,       // 慢响应阈值
     verySlow: 15000,  // 非常慢阈值
   },
+  // MySQL 响应时间阈值（毫秒）
+  mysql: {
+    slow: 1000,       // 超过此值显示 "响应较慢"
+    verySlow: 3000,   // 超过此值显示 "响应缓慢"
+  },
+  // PostgreSQL 响应时间阈值（毫秒）
+  postgres: {
+    slow: 1000,       // 超过此值显示 "响应较慢"
+    verySlow: 3000,   // 超过此值显示 "响应缓慢"
+  },
 };
 
 // 状态颜色（用于后端生成的邮件模板等）
