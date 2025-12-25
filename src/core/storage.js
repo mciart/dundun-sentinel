@@ -49,10 +49,10 @@ export async function getSettings(env) {
     hostPanelExpanded: SETTINGS.hostPanelExpanded,
     notifications: NOTIFICATIONS.defaults,
   };
-  
+
   const result = await getConfig(env, 'settings');
   if (!result) return defaults;
-  
+
   // 合并默认值，确保新增字段有默认值
   return { ...defaults, ...result };
 }
@@ -73,7 +73,7 @@ export async function getAllSites(env) {
   const results = await env.DB.prepare(
     'SELECT * FROM sites ORDER BY sort_order ASC, created_at ASC'
   ).all();
-  
+
   return (results.results || []).map(row => ({
     id: row.id,
     name: row.name,
@@ -130,9 +130,9 @@ export async function getSite(env, siteId) {
   const row = await env.DB.prepare(
     'SELECT * FROM sites WHERE id = ?'
   ).bind(siteId).first();
-  
+
   if (!row) return null;
-  
+
   return {
     id: row.id,
     name: row.name,
@@ -226,7 +226,7 @@ export async function createSite(env, site) {
     site.inverted ? 1 : 0,
     site.lastMessage || null
   ).run();
-  
+
 }
 
 /**
@@ -235,9 +235,9 @@ export async function createSite(env, site) {
 export async function updateSite(env, siteId, updates) {
   const site = await getSite(env, siteId);
   if (!site) return false;
-  
+
   const merged = { ...site, ...updates };
-  
+
   await env.DB.prepare(`
     UPDATE sites SET
       name = ?, url = ?, monitor_type = ?, status = ?, response_time = ?, last_check = ?,
@@ -286,7 +286,7 @@ export async function updateSite(env, siteId, updates) {
     merged.lastMessage,
     siteId
   ).run();
-  
+
   return true;
 }
 
@@ -295,14 +295,14 @@ export async function updateSite(env, siteId, updates) {
  */
 export async function batchUpdateSiteStatus(env, updates) {
   if (!updates || updates.length === 0) return;
-  
-  const statements = updates.map(u => 
+
+  const statements = updates.map(u =>
     env.DB.prepare(`
       UPDATE sites SET status = ?, response_time = ?, last_check = ?, last_message = ?
       WHERE id = ?
     `).bind(u.status, u.responseTime, u.lastCheck, u.message || null, u.siteId)
   );
-  
+
   await env.DB.batch(statements);
 }
 
@@ -334,7 +334,7 @@ export async function addHistoryAggregated(env, siteId, record) {
   const row = await env.DB.prepare(
     'SELECT data FROM history_aggregated WHERE site_id = ?'
   ).bind(siteId).first();
-  
+
   let history = [];
   if (row && row.data) {
     try {
@@ -343,7 +343,7 @@ export async function addHistoryAggregated(env, siteId, record) {
       history = [];
     }
   }
-  
+
   // 构建新记录（压缩格式）
   const newRecord = {
     t: record.timestamp,
@@ -352,7 +352,7 @@ export async function addHistoryAggregated(env, siteId, record) {
     r: record.responseTime || 0,
     m: record.message || null
   };
-  
+
   // 如果有 Push 数据，添加 p 字段
   if (record.pushData) {
     newRecord.p = {
@@ -366,14 +366,14 @@ export async function addHistoryAggregated(env, siteId, record) {
       x: record.pushData.custom || null
     };
   }
-  
+
   history.unshift(newRecord);
-  
+
   // 限制记录数量
   if (history.length > MAX_HISTORY_RECORDS) {
     history = history.slice(0, MAX_HISTORY_RECORDS);
   }
-  
+
   // 写入
   const now = Date.now();
   await env.DB.prepare(`
@@ -388,7 +388,7 @@ export async function addHistoryAggregated(env, siteId, record) {
  */
 export async function batchAddHistoryAggregated(env, records) {
   if (!records || records.length === 0) return;
-  
+
   // 按站点分组
   const recordsBySite = {};
   for (const r of records) {
@@ -403,15 +403,15 @@ export async function batchAddHistoryAggregated(env, records) {
       m: r.message || null
     });
   }
-  
+
   const siteIds = Object.keys(recordsBySite);
-  
+
   // 批量读取现有数据
   const placeholders = siteIds.map(() => '?').join(',');
   const existing = await env.DB.prepare(
     `SELECT site_id, data FROM history_aggregated WHERE site_id IN (${placeholders})`
   ).bind(...siteIds).all();
-  
+
   const existingMap = {};
   for (const row of (existing.results || [])) {
     try {
@@ -420,11 +420,11 @@ export async function batchAddHistoryAggregated(env, records) {
       existingMap[row.site_id] = [];
     }
   }
-  
+
   // 准备批量写入
   const now = Date.now();
   const statements = [];
-  
+
   for (const siteId of siteIds) {
     let history = existingMap[siteId] || [];
     // 新记录添加到前面
@@ -433,7 +433,7 @@ export async function batchAddHistoryAggregated(env, records) {
     if (history.length > MAX_HISTORY_RECORDS) {
       history = history.slice(0, MAX_HISTORY_RECORDS);
     }
-    
+
     const dataStr = JSON.stringify(history);
     statements.push(
       env.DB.prepare(`
@@ -443,8 +443,21 @@ export async function batchAddHistoryAggregated(env, records) {
       `).bind(siteId, dataStr, now, dataStr, now)
     );
   }
-  
-  await env.DB.batch(statements);
+
+  try {
+    await env.DB.batch(statements);
+  } catch (error) {
+    console.error('❌ 批量写入历史记录失败:', error.message);
+    console.error('❌ 失败详情: statements count =', statements.length);
+    // 尝试逐个写入以找出问题
+    for (let i = 0; i < statements.length; i++) {
+      try {
+        await statements[i].run();
+      } catch (e) {
+        console.error(`❌ 站点 ${siteIds[i]} 历史记录写入失败:`, e.message);
+      }
+    }
+  }
 }
 
 /**
@@ -454,20 +467,20 @@ export async function getSiteHistoryAggregated(env, siteId, hours = 24) {
   const row = await env.DB.prepare(
     'SELECT data FROM history_aggregated WHERE site_id = ?'
   ).bind(siteId).first();
-  
+
   if (!row || !row.data) return [];
-  
+
   let history = [];
   try {
     history = JSON.parse(row.data);
   } catch (e) {
     return [];
   }
-  
+
   // 按时间过滤
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
   const filtered = history.filter(r => r.t > cutoff);
-  
+
   // 转换为标准格式
   return filtered.map(r => ({
     timestamp: r.t,
@@ -483,15 +496,15 @@ export async function getSiteHistoryAggregated(env, siteId, hours = 24) {
  */
 export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
   if (!siteIds || siteIds.length === 0) return {};
-  
+
   const placeholders = siteIds.map(() => '?').join(',');
   const results = await env.DB.prepare(
     `SELECT site_id, data FROM history_aggregated WHERE site_id IN (${placeholders})`
   ).bind(...siteIds).all();
-  
+
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
   const historyMap = {};
-  
+
   for (const row of (results.results || [])) {
     let history = [];
     try {
@@ -499,7 +512,7 @@ export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
     } catch (e) {
       history = [];
     }
-    
+
     // 按时间过滤并转换格式
     historyMap[row.site_id] = history
       .filter(r => r.t > cutoff)
@@ -511,14 +524,14 @@ export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
         message: r.m
       }));
   }
-  
+
   // 确保所有请求的站点都有返回值
   for (const siteId of siteIds) {
     if (!historyMap[siteId]) {
       historyMap[siteId] = [];
     }
   }
-  
+
   return historyMap;
 }
 
@@ -527,16 +540,16 @@ export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
  */
 export async function cleanupAggregatedHistory(env, retentionHours = 720) {
   const cutoff = Date.now() - retentionHours * 60 * 60 * 1000;
-  
+
   // 读取所有聚合数据
   const results = await env.DB.prepare(
     'SELECT site_id, data FROM history_aggregated'
   ).all();
-  
+
   let cleanedCount = 0;
   const statements = [];
   const now = Date.now();
-  
+
   for (const row of (results.results || [])) {
     let history = [];
     try {
@@ -544,10 +557,10 @@ export async function cleanupAggregatedHistory(env, retentionHours = 720) {
     } catch (e) {
       continue;
     }
-    
+
     const originalLength = history.length;
     history = history.filter(r => r.t > cutoff);
-    
+
     if (history.length < originalLength) {
       cleanedCount += originalLength - history.length;
       statements.push(
@@ -557,11 +570,11 @@ export async function cleanupAggregatedHistory(env, retentionHours = 720) {
       );
     }
   }
-  
+
   if (statements.length > 0) {
     await env.DB.batch(statements);
   }
-  
+
   console.log(`🧹 清理了 ${cleanedCount} 条旧聚合历史记录`);
   return cleanedCount;
 }
@@ -612,7 +625,7 @@ export async function getAllGroups(env) {
   const results = await env.DB.prepare(
     'SELECT * FROM groups ORDER BY sort_order ASC'
   ).all();
-  
+
   return (results.results || []).map(row => ({
     id: row.id,
     name: row.name,
@@ -705,7 +718,7 @@ export async function getAllIncidents(env, limit = 100) {
   const results = await env.DB.prepare(`
     SELECT * FROM incidents ORDER BY start_time DESC LIMIT ?
   `).bind(limit).all();
-  
+
   return (results.results || []).map(row => ({
     id: row.id,
     siteId: row.site_id,
@@ -728,9 +741,9 @@ export async function getOngoingIncident(env, siteId) {
   const row = await env.DB.prepare(`
     SELECT * FROM incidents WHERE site_id = ? AND status = 'ongoing' ORDER BY start_time DESC LIMIT 1
   `).bind(siteId).first();
-  
+
   if (!row) return null;
-  
+
   return {
     id: row.id,
     siteId: row.site_id,
@@ -754,7 +767,7 @@ export async function getOngoingIncident(env, siteId) {
 export async function incrementStats(env, type, count = 1) {
   // 仅保留 checks 统计，writes 已移除
   if (type !== 'checks') return;
-  
+
   const date = getBeijingDate();
   try {
     await env.DB.prepare(`
@@ -776,7 +789,7 @@ export async function getTodayStats(env) {
     const row = await env.DB.prepare(
       'SELECT * FROM stats WHERE date = ?'
     ).bind(date).first();
-    
+
     return {
       date,
       checks: row?.checks || 0
@@ -833,7 +846,7 @@ export const putAdminPassword = setAdminPassword;
 export async function updatePushHeartbeat(env, siteId, heartbeatData) {
   const now = Date.now();
   const pushData = heartbeatData.pushData || {};
-  
+
   await env.DB.prepare(`
     UPDATE sites SET 
       status = 'online',
@@ -847,7 +860,7 @@ export async function updatePushHeartbeat(env, siteId, heartbeatData) {
     heartbeatData.responseTime || 0,
     siteId
   ).run();
-  
+
   // 添加历史记录（包含 Push 指标）
   await addHistoryAggregated(env, siteId, {
     timestamp: now,
@@ -867,7 +880,7 @@ export async function updatePushHeartbeat(env, siteId, heartbeatData) {
       custom: pushData.custom
     }
   });
-  
+
   console.log(`📡 Push 心跳已写入 D1: ${siteId}`);
 }
 
@@ -878,18 +891,18 @@ export async function getPushHistory(env, siteId, hours = 24) {
   const row = await env.DB.prepare(
     'SELECT data FROM history_aggregated WHERE site_id = ?'
   ).bind(siteId).first();
-  
+
   if (!row || !row.data) return [];
-  
+
   let history = [];
   try {
     history = JSON.parse(row.data);
   } catch (e) {
     return [];
   }
-  
+
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
-  
+
   // 按时间过滤并提取 Push 指标
   return history
     .filter(r => r.t > cutoff && r.p) // 只返回有 Push 数据的记录
@@ -925,7 +938,7 @@ export async function getCertificateAlert(env, siteId) {
   const row = await env.DB.prepare(
     'SELECT * FROM certificate_alerts WHERE site_id = ?'
   ).bind(siteId).first();
-  
+
   return row ? {
     siteId: row.site_id,
     lastAlertTime: row.last_alert_time,
@@ -954,7 +967,7 @@ export async function initDatabase(env) {
     const check = await env.DB.prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='sites'"
     ).first();
-    
+
     if (check) {
       // 表已存在，执行迁移检查
       await runMigrations(env);
@@ -963,9 +976,9 @@ export async function initDatabase(env) {
   } catch (e) {
     // 表不存在，继续初始化
   }
-  
+
   console.log('🔧 初始化 D1 数据库...');
-  
+
   // 创建表结构
   await env.DB.batch([
     env.DB.prepare(`
@@ -1062,7 +1075,7 @@ export async function initDatabase(env) {
       )
     `)
   ]);
-  
+
   console.log('✅ D1 数据库初始化完成');
   return true;
 }
@@ -1073,34 +1086,34 @@ export async function initDatabase(env) {
  */
 async function runMigrations(env) {
   console.log('🔄 检查数据库迁移...');
-  
+
   // 获取现有列信息
   const sitesColumns = await env.DB.prepare("PRAGMA table_info(sites)").all();
   const incidentsColumns = await env.DB.prepare("PRAGMA table_info(incidents)").all();
-  
+
   const sitesCols = new Set((sitesColumns.results || []).map(c => c.name));
   const incidentsCols = new Set((incidentsColumns.results || []).map(c => c.name));
-  
+
   const migrations = [];
-  
+
   // 检查 sites 表缺失的列
   if (!sitesCols.has('tcp_host')) {
     migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN tcp_host TEXT'));
     console.log('  + 添加 sites.tcp_host 列');
   }
-  
+
   // 检查 host_sort_order 列（主机面板排序）
   if (!sitesCols.has('host_sort_order')) {
     migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN host_sort_order INTEGER DEFAULT 0'));
     console.log('  + 添加 sites.host_sort_order 列');
   }
-  
+
   // 检查 incidents 表缺失的列
   if (!incidentsCols.has('type')) {
     migrations.push(env.DB.prepare("ALTER TABLE incidents ADD COLUMN type TEXT DEFAULT 'down'"));
     console.log('  + 添加 incidents.type 列');
   }
-  
+
   if (migrations.length > 0) {
     await env.DB.batch(migrations);
     console.log(`✅ 完成 ${migrations.length} 项迁移`);
@@ -1121,7 +1134,7 @@ export async function getMonitorState(env) {
     getAllIncidents(env),
     getTodayStats(env)
   ]);
-  
+
   return {
     config: {
       ...settings,
@@ -1146,7 +1159,7 @@ export async function getMonitorState(env) {
  */
 export async function clearAllData(env) {
   console.log('⚠️ 清除所有 D1 数据...');
-  
+
   await env.DB.batch([
     env.DB.prepare('DELETE FROM history_aggregated'),
     env.DB.prepare('DELETE FROM incidents'),
@@ -1155,6 +1168,6 @@ export async function clearAllData(env) {
     env.DB.prepare("DELETE FROM groups WHERE id != 'default'"),
     env.DB.prepare("DELETE FROM config WHERE key NOT IN ('admin_password', 'admin_path')")
   ]);
-  
+
   console.log('✅ 所有数据已清除');
 }
