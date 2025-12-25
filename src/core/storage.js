@@ -321,8 +321,38 @@ export async function deleteSite(env, siteId) {
 
 // ==================== 历史记录操作 ====================
 
-// 聚合历史数据的最大保留条数（根据 retentionHours 动态计算更精确，这里设置上限）
-const MAX_HISTORY_RECORDS = 4320; // 30天 × 144条/天 = 4320
+// 聚合历史数据的最大保留条数（约 3 天 @ 1分钟间隔）
+const MAX_HISTORY_RECORDS = 4320;
+
+// D1 单行最大 2MB，设置 1.5MB 安全阈值（字节）
+const MAX_ROW_SIZE_BYTES = 1.5 * 1024 * 1024;
+
+/**
+ * 检查并截断历史数据以确保不超过 D1 行大小限制
+ * @param {Array} history - 历史记录数组
+ * @returns {Array} - 截断后的历史记录数组
+ */
+function ensureHistorySizeLimit(history) {
+  let dataStr = JSON.stringify(history);
+
+  // 如果大小在限制内，直接返回
+  if (dataStr.length <= MAX_ROW_SIZE_BYTES) {
+    return history;
+  }
+
+  // 超过限制，需要截断
+  console.warn(`⚠️ 历史数据超过大小限制 (${(dataStr.length / 1024 / 1024).toFixed(2)}MB)，开始截断`);
+
+  // 每次减少 10% 直到满足限制
+  let truncated = [...history];
+  while (JSON.stringify(truncated).length > MAX_ROW_SIZE_BYTES && truncated.length > 100) {
+    const removeCount = Math.ceil(truncated.length * 0.1);
+    truncated = truncated.slice(0, truncated.length - removeCount);
+  }
+
+  console.log(`✅ 历史数据已截断: ${history.length} → ${truncated.length} 条`);
+  return truncated;
+}
 
 /**
  * 添加历史记录到聚合表
@@ -374,13 +404,17 @@ export async function addHistoryAggregated(env, siteId, record) {
     history = history.slice(0, MAX_HISTORY_RECORDS);
   }
 
+  // 确保不超过 D1 行大小限制
+  history = ensureHistorySizeLimit(history);
+
   // 写入
   const now = Date.now();
+  const dataStr = JSON.stringify(history);
   await env.DB.prepare(`
     INSERT INTO history_aggregated (site_id, data, updated_at)
     VALUES (?, ?, ?)
     ON CONFLICT(site_id) DO UPDATE SET data = ?, updated_at = ?
-  `).bind(siteId, JSON.stringify(history), now, JSON.stringify(history), now).run();
+  `).bind(siteId, dataStr, now, dataStr, now).run();
 }
 
 /**
@@ -433,6 +467,9 @@ export async function batchAddHistoryAggregated(env, records) {
     if (history.length > MAX_HISTORY_RECORDS) {
       history = history.slice(0, MAX_HISTORY_RECORDS);
     }
+
+    // 确保不超过 D1 行大小限制
+    history = ensureHistorySizeLimit(history);
 
     const dataStr = JSON.stringify(history);
     statements.push(
