@@ -759,6 +759,14 @@ export async function getOngoingIncident(env, siteId) {
   };
 }
 
+/**
+ * 清除所有事件记录
+ */
+export async function clearAllIncidents(env) {
+  await env.DB.prepare('DELETE FROM incidents').run();
+  console.log('🧹 已清除所有事件记录');
+}
+
 // ==================== 统计操作 ====================
 
 /**

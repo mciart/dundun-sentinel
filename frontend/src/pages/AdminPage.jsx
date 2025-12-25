@@ -26,7 +26,8 @@ import {
   LayoutGrid,
   LayoutList,
   Monitor,
-  ChevronDown
+  ChevronDown,
+  Trash2
 } from 'lucide-react';
 import { api, clearToken, getToken } from '../utils/api';
 import { useNavigate } from 'react-router-dom';
@@ -1270,6 +1271,42 @@ export default function AdminPage() {
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     测试通知将使用随机生成的数据（响应时间、证书剩余天数等），不会记录到异常通知列表。
                   </p>
+                </div>
+              </div>
+
+              {/* 清除通知历史 */}
+              <div className="glass-card p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/20">
+                    <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">清除通知历史</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">清除所有站点的异常与恢复通知记录</p>
+                  </div>
+                </div>
+
+                <div className="ml-12 space-y-4">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    此操作将删除所有历史事件记录（站点离线、恢复等通知），不可恢复。站点的监控历史数据（状态条）不受影响。
+                  </p>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('确定要清除所有通知历史吗？此操作不可恢复。')) {
+                        return;
+                      }
+                      try {
+                        await api.clearIncidents();
+                        showSuccess('通知历史已清除');
+                      } catch (error) {
+                        showError(error.message || '清除失败');
+                      }
+                    }}
+                    className="px-6 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium transition-colors flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    清除历史
+                  </button>
                 </div>
               </div>
 

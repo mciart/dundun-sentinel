@@ -81,7 +81,7 @@ export async function handleAPI(request, env, ctx) {
   }
 
   // ==================== 需要认证的接口 ====================
-  
+
   const auth = requireAuth(request);
   if (!auth.authorized) {
     return errorResponse(auth.error, 401);
@@ -116,7 +116,7 @@ export async function handleAPI(request, env, ctx) {
   if (path.startsWith('/api/sites/') && request.method === 'PUT') {
     const siteId = path.split('/')[3];
     if (siteId === 'reorder') {
-       return await sitesController.reorderSites(request, env);
+      return await sitesController.reorderSites(request, env);
     }
     return await sitesController.updateSite(request, env, siteId);
   }
@@ -136,6 +136,17 @@ export async function handleAPI(request, env, ctx) {
   // 测试通知
   if (path === '/api/test-notification' && request.method === 'POST') {
     return await monitorController.testNotification(request, env);
+  }
+
+  // 清除所有通知历史
+  if (path === '/api/incidents/clear' && request.method === 'POST') {
+    try {
+      const db = await import('./core/storage.js');
+      await db.clearAllIncidents(env);
+      return jsonResponse({ success: true, message: '通知历史已清除' });
+    } catch (error) {
+      return errorResponse('清除失败: ' + error.message, 500);
+    }
   }
 
   // 站点排序

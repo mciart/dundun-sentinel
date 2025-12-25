@@ -66,14 +66,14 @@ async function request(endpoint, options = {}) {
 }
 
 export const api = {
-  login: (password) => 
+  login: (password) =>
     request('/api/login', {
       method: 'POST',
       body: JSON.stringify({ password }),
       auth: false,
     }),
 
-  getStatus: () => 
+  getStatus: () =>
     request('/api/status', { auth: false }),
 
   getDashboard: () =>
@@ -85,41 +85,41 @@ export const api = {
   getAllHistory: (hours = 24) =>
     request(`/api/history-batch?hours=${hours}`, { auth: false }),
 
-  getSites: () => 
+  getSites: () =>
     request('/api/sites'),
 
-  addSite: (site) => 
+  addSite: (site) =>
     request('/api/sites', {
       method: 'POST',
       body: JSON.stringify(site),
     }),
 
-  updateSite: (siteId, site) => 
+  updateSite: (siteId, site) =>
     request(`/api/sites/${siteId}`, {
       method: 'PUT',
       body: JSON.stringify(site),
     }),
 
-  deleteSite: (siteId) => 
+  deleteSite: (siteId) =>
     request(`/api/sites/${siteId}`, {
       method: 'DELETE',
     }),
 
-  triggerCheck: () => 
+  triggerCheck: () =>
     request('/api/trigger-check', {
       method: 'POST',
     }),
 
-  getSettings: () => 
+  getSettings: () =>
     request('/api/settings', { auth: false }),
 
-  updateSettings: (settings) => 
+  updateSettings: (settings) =>
     request('/api/settings', {
       method: 'PUT',
       body: JSON.stringify(settings),
     }),
 
-  getStats: () => 
+  getStats: () =>
     request('/api/stats', { auth: false }),
 
   getPushHistory: (siteId, hours = 24) =>
@@ -184,6 +184,12 @@ export const api = {
 
   regeneratePushToken: (siteId) =>
     request(`/api/sites/${siteId}/regenerate-token`, {
+      method: 'POST',
+    }),
+
+  // 清除通知历史
+  clearIncidents: () =>
+    request('/api/incidents/clear', {
       method: 'POST',
     }),
 };
