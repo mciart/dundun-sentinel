@@ -11,6 +11,7 @@ export default function SiteCard({ site, index }) {
   const isTcp = site.monitorType === 'tcp';
   const isMysql = site.monitorType === 'mysql';
   const isPostgres = site.monitorType === 'postgres';
+  const isMongodb = site.monitorType === 'mongodb';
 
   const handleSiteClick = () => {
     if (site.showUrl) {
@@ -95,8 +96,16 @@ export default function SiteCard({ site, index }) {
                 </div>
               )}
 
+              {/* MongoDB 监控标识 */}
+              {isMongodb && (
+                <div className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex-shrink-0 transition-transform hover:scale-105">
+                  <Database className="w-3 h-3 flex-shrink-0" />
+                  <span>MongoDB</span>
+                </div>
+              )}
+
               {/* SSL证书状态 (仅 HTTP 监控显示) */}
-              {!isDns && !isPush && !isSmtp && !isTcp && !isMysql && !isPostgres && site.sslCertLastCheck > 0 && site.sslCert && daysLeft !== null && (
+              {!isDns && !isPush && !isSmtp && !isTcp && !isMysql && !isPostgres && !isMongodb && site.sslCertLastCheck > 0 && site.sslCert && daysLeft !== null && (
                 <div className={`
                   inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 transition-transform hover:scale-105
                   ${certExpired
@@ -122,7 +131,7 @@ export default function SiteCard({ site, index }) {
               )}
 
               {/* 无证书状态 (仅 HTTP 监控显示) */}
-              {!isDns && !isPush && !isSmtp && !isTcp && !isMysql && !isPostgres && site.sslCertLastCheck > 0 && !site.sslCert && (
+              {!isDns && !isPush && !isSmtp && !isTcp && !isMysql && !isPostgres && !isMongodb && site.sslCertLastCheck > 0 && !site.sslCert && (
                 <div className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 flex-shrink-0 transition-transform hover:scale-105">
                   <ShieldAlert className="w-3 h-3 flex-shrink-0" />
                   <span>证书无效</span>

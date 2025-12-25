@@ -81,7 +81,7 @@
 | SMTP         | connect()                         | 模拟 SMTP 握手（HELO/EHLO）                                 | 完成 |
 | MySQL      | 官方驱动 + connect()              | 直接从 Worker 连数据库握手（只要数据库公网可达）            | 完成 |
 | PostgreSQL  | 官方驱动 + connect()              | 直接从 Worker 连数据库握手（只要数据库公网可达）            | 完成 |
-| MongoDB  | 官方驱动 + connect()              | 直接从 Worker 连数据库握手（只要数据库公网可达）            | 进行 |
+| MongoDB  | 官方驱动 + connect()              | 直接从 Worker 连数据库握手（只要数据库公网可达）            | 完成 |
 | Redis        | connect() + Redis 协议            | 可以实现简单的 PING/PONG 握手                               | 计划 |
 | Browser Engine | Browser Rendering                | Cloudflare 自家的渲染引擎（需在后台开启）                   | 计划 |
 | MQTT/Kafka   | connect()                         | 只要在代码里集成对应的 JS 版客户端协议库                    | 计划 |

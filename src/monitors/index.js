@@ -5,6 +5,7 @@ import { checkPushSite } from './push.js';
 import { checkSmtpSite } from './smtp.js';
 import { checkMysqlSite } from './mysql.js';
 import { checkPostgresSite } from './postgres.js';
+import { checkMongodbSite } from './mongodb.js';
 
 export function getMonitorForSite(site) {
   if (site.monitorType === 'dns') return checkDnsSite;
@@ -12,9 +13,9 @@ export function getMonitorForSite(site) {
   if (site.monitorType === 'smtp') return checkSmtpSite;
   if (site.monitorType === 'mysql') return checkMysqlSite;
   if (site.monitorType === 'postgres') return checkPostgresSite;
+  if (site.monitorType === 'mongodb') return checkMongodbSite;
   if (site.monitorType === 'push') return (site, now) => checkPushSite(site, now, site.pushTimeoutMinutes || 3);
   return checkSite;
 }
 
-export { checkSite, checkTcpSite, checkDnsSite, checkPushSite, checkSmtpSite, checkMysqlSite, checkPostgresSite };
-
+export { checkSite, checkTcpSite, checkDnsSite, checkPushSite, checkSmtpSite, checkMysqlSite, checkPostgresSite, checkMongodbSite };
