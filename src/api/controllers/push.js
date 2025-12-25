@@ -168,190 +168,131 @@ function generateBashScript(endpoint) {
   const targetHost = urlObj.hostname;
 
   return `#!/bin/bash
-# 炖炖哨兵 - 主机心跳脚本 (增强版)
+# 炖炖哨兵 - 主机心跳脚本
 # 建议添加到 crontab: */1 * * * * /path/to/heartbeat.sh
 # 调试模式: DEBUG=1 /path/to/heartbeat.sh
 
-# 目标服务器（用于延迟检测）
 TARGET_HOST="${targetHost}"
+DEBUG="\${DEBUG:-0}"
 
-# 是否启用调试输出
-DEBUG=\${DEBUG:-0}
+log() { [ "\$DEBUG" = "1" ] && echo "[DEBUG] \$1" >&2; }
 
-log() {
-  [ "$DEBUG" = "1" ] && echo "[DEBUG] $1" >&2
-}
-
-# 获取 CPU 使用率（需要两次采样）
+# 获取 CPU 使用率 (使用 /proc/stat 两次采样)
 get_cpu() {
-  # 第一次采样
-  read cpu1 nice1 system1 idle1 rest1 < /proc/stat 2>/dev/null
-  if [ -z "$idle1" ]; then
-    log "CPU: /proc/stat 读取失败"
+  # 读取第一次采样
+  local stat1=$(head -1 /proc/stat 2>/dev/null)
+  if [ -z "\$stat1" ]; then
+    log "CPU: 读取失败"
     echo "0"
     return
   fi
+  local idle1=$(echo "\$stat1" | awk '{print \$5}')
+  local total1=$(echo "\$stat1" | awk '{print \$2+\$3+\$4+\$5+\$6+\$7+\$8}')
   
-  # 等待 0.5 秒
   sleep 0.5
   
-  # 第二次采样
-  read cpu2 nice2 system2 idle2 rest2 < /proc/stat 2>/dev/null
+  # 读取第二次采样
+  local stat2=$(head -1 /proc/stat 2>/dev/null)
+  local idle2=$(echo "\$stat2" | awk '{print \$5}')
+  local total2=$(echo "\$stat2" | awk '{print \$2+\$3+\$4+\$5+\$6+\$7+\$8}')
   
-  # 计算差值
-  idle_diff=$((idle2 - idle1))
-  total_diff=$(( (cpu2 + nice2 + system2 + idle2) - (cpu1 + nice1 + system1 + idle1) ))
+  # 计算使用率
+  local idle_diff=\$((idle2 - idle1))
+  local total_diff=\$((total2 - total1))
   
-  if [ "$total_diff" -gt 0 ]; then
-    usage=$(awk "BEGIN {printf \\"%.1f\\", (1 - $idle_diff / $total_diff) * 100}")
-    log "CPU: $usage%"
-    echo "$usage"
+  if [ "\$total_diff" -gt 0 ] 2>/dev/null; then
+    local usage=$(awk "BEGIN {printf \\"%.1f\\", (1 - \$idle_diff / \$total_diff) * 100}")
+    log "CPU: \$usage%"
+    echo "\$usage"
   else
-    log "CPU: 计算失败 (total_diff=0)"
+    log "CPU: 计算失败"
     echo "0"
   fi
 }
 
 # 获取内存使用率
 get_memory() {
-  mem=$(awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{if(t>0) printf "%.1f", (t-a)/t*100}' /proc/meminfo 2>/dev/null)
-  if [ -n "$mem" ]; then
-    log "内存: $mem%"
-    echo "$mem"
-    return
+  local mem=$(awk '/MemTotal/{t=\$2} /MemAvailable/{a=\$2} END{if(t>0) printf "%.1f", (t-a)/t*100}' /proc/meminfo 2>/dev/null)
+  if [ -n "\$mem" ]; then
+    log "内存: \$mem%"
+    echo "\$mem"
+  else
+    log "内存: 获取失败"
+    echo "0"
   fi
-  # 备用: 使用 free 命令
-  mem=$(free 2>/dev/null | awk '/Mem:/ {printf "%.1f", $3/$2 * 100}')
-  if [ -n "$mem" ]; then
-    log "内存 (free): $mem%"
-    echo "$mem"
-    return
-  fi
-  log "内存: 获取失败"
-  echo "0"
 }
 
 # 获取磁盘使用率
 get_disk() {
-  # 尝试使用 df 命令获取根分区使用率
-  disk=$(df -P / 2>/dev/null | awk 'NR==2 {gsub(/%/,""); print $5}')
-  if [ -n "$disk" ] && [ "$disk" -ge 0 ] 2>/dev/null; then
-    log "磁盘: $disk%"
-    echo "$disk"
-    return
+  local disk=$(df -P / 2>/dev/null | awk 'NR==2 {gsub(/%/,""); print \$5}')
+  if [ -n "\$disk" ] && [ "\$disk" -ge 0 ] 2>/dev/null; then
+    log "磁盘: \$disk%"
+    echo "\$disk"
+  else
+    log "磁盘: 获取失败"
+    echo "0"
   fi
-  # 备用方法：直接解析
-  disk=$(df / 2>/dev/null | tail -1 | awk '{gsub(/%/,""); print $(NF-1)}')
-  if [ -n "$disk" ] && [ "$disk" -ge 0 ] 2>/dev/null; then
-    log "磁盘 (备用): $disk%"
-    echo "$disk"
-    return
-  fi
-  log "磁盘: 获取失败"
-  echo "0"
 }
 
 # 获取系统负载
 get_load() {
-  load=$(awk '{print $1}' /proc/loadavg 2>/dev/null)
-  if [ -n "$load" ]; then
-    log "负载: $load"
-    echo "$load"
-    return
-  fi
-  log "负载: 获取失败"
-  echo "0"
+  local load=$(awk '{print \$1}' /proc/loadavg 2>/dev/null)
+  [ -n "\$load" ] && log "负载: \$load" && echo "\$load" || echo "0"
 }
 
 # 获取运行时间（秒）
 get_uptime() {
-  up=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
-  if [ -n "$up" ]; then
-    log "运行时间: $up 秒"
-    echo "$up"
-    return
-  fi
-  log "运行时间: 获取失败"
-  echo "0"
+  local up=$(awk '{print int(\$1)}' /proc/uptime 2>/dev/null)
+  [ -n "\$up" ] && log "运行: \$up秒" && echo "\$up" || echo "0"
 }
 
 # 获取 CPU 温度
 get_temperature() {
   if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
-    temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
-    if [ -n "$temp" ] && [ "$temp" -gt 0 ] 2>/dev/null; then
-      result=$((temp / 1000))
-      log "温度: $result°C"
-      echo "$result"
+    local temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
+    if [ -n "\$temp" ] && [ "\$temp" -gt 0 ] 2>/dev/null; then
+      log "温度: \$((temp/1000))°C"
+      echo \$((temp/1000))
       return
     fi
   fi
-  for f in /sys/class/hwmon/hwmon*/temp1_input; do
-    if [ -f "$f" ]; then
-      temp=$(cat "$f" 2>/dev/null)
-      if [ -n "$temp" ]; then
-        result=$((temp / 1000))
-        log "温度 (hwmon): $result°C"
-        echo "$result"
-        return
-      fi
-    fi
-  done 2>/dev/null
-  log "温度: 无法获取"
 }
 
-# 获取到目标服务器的延迟
+# 获取延迟
 get_latency() {
-  # 使用 curl 测量 HTTPS 连接时间
-  latency=$(curl -o /dev/null -s -w '%{time_connect}' --connect-timeout 5 "https://$TARGET_HOST" 2>/dev/null)
-  if [ -n "$latency" ] && [ "$latency" != "0.000000" ]; then
-    result=$(echo "$latency" | awk '{printf "%.0f", $1 * 1000}')
-    log "延迟: \${result}ms"
-    echo "$result"
-    return
+  local latency=$(curl -o /dev/null -s -w '%{time_connect}' --connect-timeout 5 "https://\$TARGET_HOST" 2>/dev/null)
+  if [ -n "\$latency" ] && [ "\$latency" != "0.000000" ]; then
+    local ms=$(echo "\$latency" | awk '{printf "%.0f", \$1 * 1000}')
+    log "延迟: \${ms}ms"
+    echo "\$ms"
+  else
+    echo "0"
   fi
-  # 备用: 使用 ping
-  latency=$(ping -c 1 -W 5 "$TARGET_HOST" 2>/dev/null | grep -oP 'time=\\K[0-9.]+')
-  if [ -n "$latency" ]; then
-    result=\${latency%.*}
-    log "延迟 (ping): \${result}ms"
-    echo "$result"
-    return
-  fi
-  log "延迟: 无法获取"
-  echo "0"
 }
 
 # 收集数据
-log "=== 开始收集系统信息 ==="
-CPU=$(get_cpu)
-MEM=$(get_memory)
-DISK=$(get_disk)
-LOAD=$(get_load)
-UPTIME=$(get_uptime)
-TEMP=$(get_temperature)
-LATENCY=$(get_latency)
+log "=== 收集系统信息 ==="
+CPU=\$(get_cpu)
+MEM=\$(get_memory)
+DISK=\$(get_disk)
+LOAD=\$(get_load)
+UPTIME=\$(get_uptime)
+TEMP=\$(get_temperature)
+LATENCY=\$(get_latency)
 
 # 构建 JSON
-JSON='{"cpu":'$CPU',"memory":'$MEM',"disk":'$DISK',"load":'$LOAD',"uptime":'$UPTIME',"latency":'$LATENCY
-if [ -n "$TEMP" ]; then
-  JSON=$JSON',"temperature":'$TEMP'}'
-else
-  JSON=$JSON'}'
-fi
+JSON='{"cpu":'\$CPU',"memory":'\$MEM',"disk":'\$DISK',"load":'\$LOAD',"uptime":'\$UPTIME',"latency":'\$LATENCY
+[ -n "\$TEMP" ] && JSON=\$JSON',"temperature":'\$TEMP'}' || JSON=\$JSON'}'
 
-log "发送数据: $JSON"
+log "发送: \$JSON"
 
 # 发送心跳
-RESPONSE=$(curl -s -X POST "${endpoint}" -H "Content-Type: application/json" -d "$JSON" 2>&1)
-EXIT_CODE=$?
-
-if [ $EXIT_CODE -eq 0 ]; then
-  log "发送成功"
-  [ "$DEBUG" = "1" ] && echo "$RESPONSE" >&2
+RESP=\$(curl -s -X POST "${endpoint}" -H "Content-Type: application/json" -d "\$JSON" 2>&1)
+if [ \$? -eq 0 ]; then
+  log "成功: \$RESP"
 else
-  log "发送失败: 退出码 $EXIT_CODE"
-  echo "ERROR: 心跳发送失败" >&2
+  echo "ERROR: 发送失败" >&2
+  exit 1
 fi`;
 }
 
