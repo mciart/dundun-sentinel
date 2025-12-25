@@ -8,7 +8,7 @@ export async function getDashboardData(request, env) {
   try {
     // 确保数据库已初始化
     await db.initDatabase(env);
-    
+
     const sites = await db.getAllSites(env);
     const groups = await db.getAllGroups(env);
     const settings = await db.getSettings(env);
@@ -33,7 +33,9 @@ export async function getDashboardData(request, env) {
       lastHeartbeat: site.lastHeartbeat || 0,
       pushData: site.pushData || null,
       showInHostPanel: site.showInHostPanel !== false,
-      dnsRecordType: site.dnsRecordType || 'A'
+      dnsRecordType: site.dnsRecordType || 'A',
+      tcpPort: site.tcpPort || null,
+      dbPort: site.dbPort || null
     }));
 
     const formattedGroups = groups.map(g => ({
@@ -44,17 +46,17 @@ export async function getDashboardData(request, env) {
       iconColor: g.iconColor || null
     }));
 
-    return jsonResponse({ 
-      sites: publicSites, 
-      groups: formattedGroups, 
+    return jsonResponse({
+      sites: publicSites,
+      groups: formattedGroups,
       settings: {
         siteName: settings.siteName || BRAND.siteName,
         siteSubtitle: settings.siteSubtitle || BRAND.siteSubtitle,
         pageTitle: settings.pageTitle || BRAND.pageTitle,
         hostDisplayMode: settings.hostDisplayMode || SETTINGS.hostDisplayMode,
         hostPanelExpanded: settings.hostPanelExpanded !== false
-      }, 
-      incidents 
+      },
+      incidents
     });
   } catch (error) {
     console.error('getDashboardData error:', error);
@@ -66,7 +68,7 @@ export async function getStats(request, env) {
   try {
     const stats = await db.getTodayStats(env);
     const sites = await db.getAllSites(env);
-    
+
     return jsonResponse({
       checks: {
         today: stats.checks,
@@ -87,13 +89,13 @@ export async function getHistoryBatch(request, env) {
   try {
     const url = new URL(request.url);
     const hours = parseInt(url.searchParams.get('hours') || '24', 10);
-    
+
     const sites = await db.getAllSites(env);
     const siteIds = sites.map(s => s.id);
-    
+
     // 批量获取历史记录
     const historyMap = await db.batchGetSiteHistory(env, siteIds, hours);
-    
+
     // 计算统计数据
     const result = {};
     for (const site of sites) {
@@ -122,10 +124,10 @@ export async function getPushHistory(request, env, siteId) {
     if (!siteId) {
       return errorResponse('站点 ID 不能为空', 400);
     }
-    
+
     const url = new URL(request.url);
     const hours = parseInt(url.searchParams.get('hours')) || 24;
-    
+
     // 验证站点存在且是 Push 类型
     const site = await db.getSite(env, siteId);
     if (!site) {
@@ -134,10 +136,10 @@ export async function getPushHistory(request, env, siteId) {
     if (site.monitorType !== 'push') {
       return errorResponse('该站点不是 Push 监控类型', 400);
     }
-    
+
     const history = await db.getPushHistory(env, siteId, hours);
-    
-    return jsonResponse({ 
+
+    return jsonResponse({
       siteId,
       siteName: site.name,
       history,
@@ -153,7 +155,7 @@ export async function getStatus(request, env) {
     const sites = await db.getAllSites(env);
     const settings = await db.getSettings(env);
     const stats = await db.getTodayStats(env);
-    
+
     return jsonResponse({
       sites,
       config: settings,
