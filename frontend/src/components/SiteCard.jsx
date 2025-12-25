@@ -14,6 +14,7 @@ export default function SiteCard({ site, index }) {
   const isMongodb = site.monitorType === 'mongodb';
   const isRedis = site.monitorType === 'redis';
   const isGrpc = site.monitorType === 'grpc';
+  const isMqtt = site.monitorType === 'mqtt';
 
   const handleSiteClick = () => {
     if (site.showUrl) {
@@ -122,8 +123,16 @@ export default function SiteCard({ site, index }) {
                 </div>
               )}
 
+              {/* MQTT 监控标识 */}
+              {isMqtt && (
+                <div className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 flex-shrink-0 transition-transform hover:scale-105">
+                  <Plug className="w-3 h-3 flex-shrink-0" />
+                  <span>MQTT</span>
+                </div>
+              )}
+
               {/* SSL证书状态 (仅 HTTP 监控显示) */}
-              {!isDns && !isPush && !isSmtp && !isTcp && !isMysql && !isPostgres && !isMongodb && !isRedis && !isGrpc && site.sslCertLastCheck > 0 && site.sslCert && daysLeft !== null && (
+              {!isDns && !isPush && !isSmtp && !isTcp && !isMysql && !isPostgres && !isMongodb && !isRedis && !isGrpc && !isMqtt && site.sslCertLastCheck > 0 && site.sslCert && daysLeft !== null && (
                 <div className={`
                   inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 transition-transform hover:scale-105
                   ${certExpired
@@ -149,7 +158,7 @@ export default function SiteCard({ site, index }) {
               )}
 
               {/* 无证书状态 (仅 HTTP 监控显示) */}
-              {!isDns && !isPush && !isSmtp && !isTcp && !isMysql && !isPostgres && !isMongodb && !isRedis && !isGrpc && site.sslCertLastCheck > 0 && !site.sslCert && (
+              {!isDns && !isPush && !isSmtp && !isTcp && !isMysql && !isPostgres && !isMongodb && !isRedis && !isGrpc && !isMqtt && site.sslCertLastCheck > 0 && !site.sslCert && (
                 <div className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 flex-shrink-0 transition-transform hover:scale-105">
                   <ShieldAlert className="w-3 h-3 flex-shrink-0" />
                   <span>证书无效</span>

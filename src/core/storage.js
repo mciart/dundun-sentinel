@@ -112,6 +112,9 @@ export async function getAllSites(env) {
     grpcHost: row.grpc_host,
     grpcPort: row.grpc_port,
     grpcTls: row.grpc_tls !== 0,  // D1 存储为 0/1
+    // MQTT
+    mqttHost: row.mqtt_host,
+    mqttPort: row.mqtt_port,
     // Push
     pushToken: row.push_token,
     pushInterval: row.push_interval,
@@ -172,6 +175,8 @@ export async function getSite(env, siteId) {
     grpcHost: row.grpc_host,
     grpcPort: row.grpc_port,
     grpcTls: row.grpc_tls !== 0,
+    mqttHost: row.mqtt_host,
+    mqttPort: row.mqtt_port,
     pushToken: row.push_token,
     pushInterval: row.push_interval,
     lastHeartbeat: row.last_heartbeat,
@@ -200,9 +205,10 @@ export async function createSite(env, site) {
       smtp_host, smtp_port, smtp_security,
       db_host, db_port,
       grpc_host, grpc_port, grpc_tls,
+      mqtt_host, mqtt_port,
       push_token, push_interval, last_heartbeat, push_data, show_in_host_panel,
       ssl_cert, ssl_cert_last_check, notify_enabled, inverted, last_message
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     site.id,
     site.name,
@@ -234,6 +240,8 @@ export async function createSite(env, site) {
     site.grpcHost || null,
     site.grpcPort || 443,
     site.grpcTls !== false ? 1 : 0,
+    site.mqttHost || null,
+    site.mqttPort || 1883,
     site.pushToken || null,
     site.pushInterval || 60,
     site.lastHeartbeat || 0,
@@ -267,6 +275,7 @@ export async function updateSite(env, siteId, updates) {
       smtp_host = ?, smtp_port = ?, smtp_security = ?,
       db_host = ?, db_port = ?,
       grpc_host = ?, grpc_port = ?, grpc_tls = ?,
+      mqtt_host = ?, mqtt_port = ?,
       push_token = ?, push_interval = ?, last_heartbeat = ?, push_data = ?, show_in_host_panel = ?,
       ssl_cert = ?, ssl_cert_last_check = ?, notify_enabled = ?, inverted = ?, last_message = ?
     WHERE id = ?
@@ -300,6 +309,8 @@ export async function updateSite(env, siteId, updates) {
     merged.grpcHost || null,
     merged.grpcPort || 443,
     merged.grpcTls !== false ? 1 : 0,
+    merged.mqttHost || null,
+    merged.mqttPort || 1883,
     merged.pushToken,
     merged.pushInterval,
     merged.lastHeartbeat,

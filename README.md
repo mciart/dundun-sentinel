@@ -84,7 +84,8 @@
 | MongoDB  | 官方驱动 + connect()              | 直接从 Worker 连数据库握手（只要数据库公网可达）            | 完成 |
 | Redis        | connect() + Redis 协议            | 可以实现简单的 PING/PONG 握手                               | 完成 |
 | gRPC         | 原生 fetch (HTTP/2)               | Worker 原生支持 H2，可做 gRPC 探测                          | 完成 |
-| MQTT/Kafka   | connect()                         | 只要在代码里集成对应的 JS 版客户端协议库                    | 计划 |
+| MQTT   | connect()                         | 只要在代码里集成对应的 JS 版客户端协议库                    | 完成 |
+| Kafka   | connect()                         | 只要在代码里集成对应的 JS 版客户端协议库                    | 计划 |
 | Browser Engine | Browser Rendering                | Cloudflare 自家的渲染引擎（需在后台开启）                   | 计划 |
 
 其他功能：

@@ -20,6 +20,8 @@ export const TIMEOUTS = {
   redisTimeout: 10000,
   // gRPC 监控超时（毫秒）
   grpcTimeout: 15000,
+  // MQTT 监控超时（毫秒）
+  mqttTimeout: 15000,
 };
 
 export const INTERVALS = {

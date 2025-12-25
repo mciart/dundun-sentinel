@@ -65,6 +65,16 @@ export async function addSite(request, env) {
           return errorResponse('无效的端口号（必须为 1-65535）', 400);
         }
       }
+    } else if (site.monitorType === 'mqtt') {
+      if (!site.mqttHost || !isValidHost(site.mqttHost)) {
+        return errorResponse('无效的 MQTT 主机名', 400);
+      }
+      if (site.mqttPort) {
+        const port = parseInt(site.mqttPort, 10);
+        if (isNaN(port) || port < 1 || port > 65535) {
+          return errorResponse('无效的端口号（必须为 1-65535）', 400);
+        }
+      }
     } else if (isPush) {
       if (!site.name || site.name.trim() === '') {
         return errorResponse('请输入主机名称', 400);
@@ -107,6 +117,9 @@ export async function addSite(request, env) {
       grpcHost: site.grpcHost || '',
       grpcPort: site.grpcPort ? parseInt(site.grpcPort, 10) : 443,
       grpcTls: site.grpcTls !== false,
+      // MQTT 监控相关字段
+      mqttHost: site.mqttHost || '',
+      mqttPort: site.mqttPort ? parseInt(site.mqttPort, 10) : 1883,
       showUrl: site.showUrl || false,
       notifyEnabled: site.notifyEnabled === true,  // 默认关闭通知
       inverted: site.inverted === true,  // 反转模式
@@ -187,6 +200,17 @@ export async function updateSite(request, env, siteId) {
           return errorResponse('无效的端口号（必须为 1-65535）', 400);
         }
         updates.grpcPort = port;
+      }
+    } else if (newMonitorType === 'mqtt') {
+      if (updates.mqttHost && !isValidHost(updates.mqttHost)) {
+        return errorResponse('无效的 MQTT 主机名', 400);
+      }
+      if (updates.mqttPort !== undefined) {
+        const port = parseInt(updates.mqttPort, 10);
+        if (isNaN(port) || port < 1 || port > 65535) {
+          return errorResponse('无效的端口号（必须为 1-65535）', 400);
+        }
+        updates.mqttPort = port;
       }
     } else if (newMonitorType === 'push') {
       if (updates.pushInterval !== undefined) {

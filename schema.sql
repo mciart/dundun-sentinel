@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS sites (
   grpc_port INTEGER DEFAULT 443,
   grpc_tls INTEGER DEFAULT 1,  -- 0=不使用TLS, 1=使用TLS
   
+  -- MQTT 监控配置
+  mqtt_host TEXT,
+  mqtt_port INTEGER DEFAULT 1883,
+  
   -- Push 监控配置
   push_token TEXT,
   push_interval INTEGER DEFAULT 60,

@@ -28,6 +28,7 @@ const MONITOR_TYPES = [
   { value: 'tcp', label: 'TCP 端口', description: '监控端口连通性' },
   { value: 'smtp', label: 'SMTP', description: '监控邮件服务器可用性' },
   { value: 'grpc', label: 'gRPC', description: '监控 gRPC 服务可用性' },
+  { value: 'mqtt', label: 'MQTT', description: '监控 MQTT Broker 可用性' },
   { value: 'mysql', label: 'MySQL', description: '监控 MySQL 数据库可用性' },
   { value: 'postgres', label: 'PostgreSQL', description: '监控 PostgreSQL 数据库可用性' },
   { value: 'mongodb', label: 'MongoDB', description: '监控 MongoDB 数据库可用性' },
@@ -78,6 +79,9 @@ export default function AddSiteModal({ onClose, onSubmit, groups = [] }) {
     grpcHost: '',
     grpcPort: '443',
     grpcTls: true,
+    // MQTT 相关
+    mqttHost: '',
+    mqttPort: '1883',
     // Push 心跳相关
     pushTimeoutMinutes: 3,
     showInHostPanel: true  // 是否显示在主机监控面板
@@ -158,8 +162,9 @@ export default function AddSiteModal({ onClose, onSubmit, groups = [] }) {
                     : (formData.monitorType === 'tcp' || formData.monitorType === 'smtp') ? '主机名 *'
                       : (formData.monitorType === 'mysql' || formData.monitorType === 'postgres' || formData.monitorType === 'mongodb' || formData.monitorType === 'redis') ? '数据库主机 *'
                         : formData.monitorType === 'grpc' ? 'gRPC 主机 *'
-                          : formData.monitorType === 'push' ? '主机名称 *'
-                            : '站点 URL *'}
+                          : formData.monitorType === 'mqtt' ? 'MQTT Broker *'
+                            : formData.monitorType === 'push' ? '主机名称 *'
+                              : '站点 URL *'}
                 </label>
                 {formData.monitorType === 'push' ? (
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
@@ -190,6 +195,15 @@ export default function AddSiteModal({ onClose, onSubmit, groups = [] }) {
                     onChange={(e) => setFormData({ ...formData, grpcHost: e.target.value })}
                     className="input-field"
                     placeholder="grpc.example.com"
+                    required
+                  />
+                ) : formData.monitorType === 'mqtt' ? (
+                  <input
+                    type="text"
+                    value={formData.mqttHost}
+                    onChange={(e) => setFormData({ ...formData, mqttHost: e.target.value })}
+                    className="input-field"
+                    placeholder="mqtt.example.com"
                     required
                   />
                 ) : (
@@ -696,6 +710,60 @@ export default function AddSiteModal({ onClose, onSubmit, groups = [] }) {
                     </ul>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-violet-200 dark:border-violet-800">
+                    <div>
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        反转模式
+                      </label>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        开启后，服务可访问视为故障，不可访问视为正常
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, inverted: !formData.inverted })}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${formData.inverted
+                        ? 'bg-amber-500'
+                        : 'bg-slate-300 dark:bg-slate-600'
+                        }`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${formData.inverted ? 'translate-x-5' : 'translate-x-0'
+                        }`} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* MQTT Broker 配置 - 青色主题 */}
+              {formData.monitorType === 'mqtt' && (
+                <div className="grid grid-cols-1 gap-4 p-4 rounded-xl bg-cyan-50/50 dark:bg-cyan-900/10 border border-cyan-200 dark:border-cyan-800">
+                  <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-300 text-sm font-medium">
+                    <Server className="w-4 h-4" />
+                    MQTT Broker 配置
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      端口
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.mqttPort}
+                      onChange={(e) => setFormData({ ...formData, mqttPort: e.target.value })}
+                      className="input-field"
+                      placeholder="1883"
+                    />
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      默认端口 1883，TLS 通常使用 8883
+                    </p>
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 p-3 rounded-lg bg-slate-200/80 dark:bg-dark-layer">
+                    <p className="font-medium mb-1">💡 监控说明：</p>
+                    <ul className="space-y-1 list-disc list-inside">
+                      <li>通过 MQTT 3.1.1 CONNECT 握手验证 Broker 可用性</li>
+                      <li>支持检测需要认证的 MQTT Broker</li>
+                      <li>不会发送或订阅任何消息</li>
+                    </ul>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-cyan-200 dark:border-cyan-800">
                     <div>
                       <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         反转模式
