@@ -17,10 +17,10 @@ export async function handlePushReport(request, env, token) {
     }
 
     const sites = await getAllSites(env);
-    
+
     // 查找对应的站点
     const site = sites.find(s => s.pushToken === token && s.monitorType === 'push');
-    
+
     if (!site) {
       return errorResponse('站点不存在或 Token 无效', 404);
     }
@@ -40,7 +40,7 @@ export async function handlePushReport(request, env, token) {
     }
 
     const now = Date.now();
-    
+
     const heartbeatData = {
       pushData: {
         cpu: pushData.cpu ?? null,
@@ -62,8 +62,8 @@ export async function handlePushReport(request, env, token) {
 
     console.log(`📡 收到心跳: ${site.name} (已写入 D1)`);
 
-    return jsonResponse({ 
-      success: true, 
+    return jsonResponse({
+      success: true,
       message: '心跳已记录',
       timestamp: now,
       siteId: site.id,
@@ -82,24 +82,24 @@ export async function handlePushReport(request, env, token) {
 export async function regeneratePushToken(request, env, siteId) {
   try {
     const site = await getSite(env, siteId);
-    
+
     if (!site) {
       return errorResponse('站点不存在', 404);
     }
-    
+
     if (site.monitorType !== 'push') {
       return errorResponse('该站点不是 Push 监控类型', 400);
     }
 
     const newToken = generatePushToken();
-    
+
     // 直接更新数据库中的 token
     const { updateSite } = await import('../../core/storage.js');
     await updateSite(env, siteId, { pushToken: newToken });
 
-    return jsonResponse({ 
-      success: true, 
-      token: newToken 
+    return jsonResponse({
+      success: true,
+      token: newToken
     });
   } catch (error) {
     return errorResponse('生成 Token 失败: ' + error.message, 500);
@@ -113,11 +113,11 @@ export async function regeneratePushToken(request, env, siteId) {
 export async function getPushConfig(request, env, siteId) {
   try {
     const site = await getSite(env, siteId);
-    
+
     if (!site) {
       return errorResponse('站点不存在', 404);
     }
-    
+
     if (site.monitorType !== 'push') {
       return errorResponse('该站点不是 Push 监控类型', 400);
     }
@@ -166,84 +166,164 @@ function generateBashScript(endpoint) {
   // 从 endpoint 提取域名
   const urlObj = new URL(endpoint);
   const targetHost = urlObj.hostname;
-  
+
   return `#!/bin/bash
-# 炖炖哨兵 - 主机心跳脚本
+# 炖炖哨兵 - 主机心跳脚本 (增强版)
 # 建议添加到 crontab: */1 * * * * /path/to/heartbeat.sh
+# 调试模式: DEBUG=1 /path/to/heartbeat.sh
 
 # 目标服务器（用于延迟检测）
 TARGET_HOST="${targetHost}"
 
-# 获取 CPU 使用率
+# 是否启用调试输出
+DEBUG=\${DEBUG:-0}
+
+log() {
+  [ "$DEBUG" = "1" ] && echo "[DEBUG] $1" >&2
+}
+
+# 获取 CPU 使用率（需要两次采样）
 get_cpu() {
-  cpu=$(awk '/^cpu / {usage=($2+$4)*100/($2+$4+$5); printf "%.1f", usage}' /proc/stat 2>/dev/null)
-  [ -n "$cpu" ] && echo "$cpu" || echo "0"
+  # 第一次采样
+  read cpu1 nice1 system1 idle1 rest1 < /proc/stat 2>/dev/null
+  if [ -z "$idle1" ]; then
+    log "CPU: /proc/stat 读取失败"
+    echo "0"
+    return
+  fi
+  
+  # 等待 0.5 秒
+  sleep 0.5
+  
+  # 第二次采样
+  read cpu2 nice2 system2 idle2 rest2 < /proc/stat 2>/dev/null
+  
+  # 计算差值
+  idle_diff=$((idle2 - idle1))
+  total_diff=$(( (cpu2 + nice2 + system2 + idle2) - (cpu1 + nice1 + system1 + idle1) ))
+  
+  if [ "$total_diff" -gt 0 ]; then
+    usage=$(awk "BEGIN {printf \\"%.1f\\", (1 - $idle_diff / $total_diff) * 100}")
+    log "CPU: $usage%"
+    echo "$usage"
+  else
+    log "CPU: 计算失败 (total_diff=0)"
+    echo "0"
+  fi
 }
 
 # 获取内存使用率
 get_memory() {
-  # 优先从 /proc/meminfo 读取（更可靠）
   mem=$(awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{if(t>0) printf "%.1f", (t-a)/t*100}' /proc/meminfo 2>/dev/null)
-  [ -n "$mem" ] && echo "$mem" && return
+  if [ -n "$mem" ]; then
+    log "内存: $mem%"
+    echo "$mem"
+    return
+  fi
   # 备用: 使用 free 命令
   mem=$(free 2>/dev/null | awk '/Mem:/ {printf "%.1f", $3/$2 * 100}')
-  [ -n "$mem" ] && echo "$mem" || echo "0"
+  if [ -n "$mem" ]; then
+    log "内存 (free): $mem%"
+    echo "$mem"
+    return
+  fi
+  log "内存: 获取失败"
+  echo "0"
 }
 
 # 获取磁盘使用率
 get_disk() {
-  disk=$(df / 2>/dev/null | awk 'NR==2 {gsub(/%/,""); print $5}')
-  [ -n "$disk" ] && echo "$disk" || echo "0"
+  # 尝试使用 df 命令获取根分区使用率
+  disk=$(df -P / 2>/dev/null | awk 'NR==2 {gsub(/%/,""); print $5}')
+  if [ -n "$disk" ] && [ "$disk" -ge 0 ] 2>/dev/null; then
+    log "磁盘: $disk%"
+    echo "$disk"
+    return
+  fi
+  # 备用方法：直接解析
+  disk=$(df / 2>/dev/null | tail -1 | awk '{gsub(/%/,""); print $(NF-1)}')
+  if [ -n "$disk" ] && [ "$disk" -ge 0 ] 2>/dev/null; then
+    log "磁盘 (备用): $disk%"
+    echo "$disk"
+    return
+  fi
+  log "磁盘: 获取失败"
+  echo "0"
 }
 
 # 获取系统负载
 get_load() {
   load=$(awk '{print $1}' /proc/loadavg 2>/dev/null)
-  [ -n "$load" ] && echo "$load" || echo "0"
+  if [ -n "$load" ]; then
+    log "负载: $load"
+    echo "$load"
+    return
+  fi
+  log "负载: 获取失败"
+  echo "0"
 }
 
 # 获取运行时间（秒）
 get_uptime() {
   up=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
-  [ -n "$up" ] && echo "$up" || echo "0"
+  if [ -n "$up" ]; then
+    log "运行时间: $up 秒"
+    echo "$up"
+    return
+  fi
+  log "运行时间: 获取失败"
+  echo "0"
 }
 
 # 获取 CPU 温度
 get_temperature() {
   if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
     temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
-    [ -n "$temp" ] && [ "$temp" -gt 0 ] 2>/dev/null && echo $((temp / 1000)) && return
-  fi
-  for f in /sys/class/hwmon/hwmon*/temp1_input; do
-    [ -f "$f" ] && temp=$(cat "$f" 2>/dev/null) && [ -n "$temp" ] && echo $((temp / 1000)) && return
-  done 2>/dev/null
-}
-
-# 获取到目标服务器的延迟（TCP ping 到 443 端口）
-get_latency() {
-  # 方式1: 使用 curl 测量 HTTPS 连接时间（最可靠）
-  latency=$(curl -o /dev/null -s -w '%{time_connect}' --connect-timeout 5 "https://$TARGET_HOST" 2>/dev/null)
-  if [ -n "$latency" ] && [ "$latency" != "0.000000" ]; then
-    # 转换为毫秒
-    echo "$latency" | awk '{printf "%.0f", $1 * 1000}'
-    return
-  fi
-  # 方式2: 使用 nc (netcat) TCP 连接测时
-  if command -v nc &>/dev/null; then
-    start=$(date +%s%3N)
-    nc -z -w 5 "$TARGET_HOST" 443 2>/dev/null
-    if [ $? -eq 0 ]; then
-      end=$(date +%s%3N)
-      echo $((end - start))
+    if [ -n "$temp" ] && [ "$temp" -gt 0 ] 2>/dev/null; then
+      result=$((temp / 1000))
+      log "温度: $result°C"
+      echo "$result"
       return
     fi
   fi
-  # 方式3: 使用 ping（ICMP，可能被防火墙拦截）
+  for f in /sys/class/hwmon/hwmon*/temp1_input; do
+    if [ -f "$f" ]; then
+      temp=$(cat "$f" 2>/dev/null)
+      if [ -n "$temp" ]; then
+        result=$((temp / 1000))
+        log "温度 (hwmon): $result°C"
+        echo "$result"
+        return
+      fi
+    fi
+  done 2>/dev/null
+  log "温度: 无法获取"
+}
+
+# 获取到目标服务器的延迟
+get_latency() {
+  # 使用 curl 测量 HTTPS 连接时间
+  latency=$(curl -o /dev/null -s -w '%{time_connect}' --connect-timeout 5 "https://$TARGET_HOST" 2>/dev/null)
+  if [ -n "$latency" ] && [ "$latency" != "0.000000" ]; then
+    result=$(echo "$latency" | awk '{printf "%.0f", $1 * 1000}')
+    log "延迟: \${result}ms"
+    echo "$result"
+    return
+  fi
+  # 备用: 使用 ping
   latency=$(ping -c 1 -W 5 "$TARGET_HOST" 2>/dev/null | grep -oP 'time=\\K[0-9.]+')
-  [ -n "$latency" ] && echo "\${latency%.*}" || echo "0"
+  if [ -n "$latency" ]; then
+    result=\${latency%.*}
+    log "延迟 (ping): \${result}ms"
+    echo "$result"
+    return
+  fi
+  log "延迟: 无法获取"
+  echo "0"
 }
 
 # 收集数据
+log "=== 开始收集系统信息 ==="
 CPU=$(get_cpu)
 MEM=$(get_memory)
 DISK=$(get_disk)
@@ -260,8 +340,19 @@ else
   JSON=$JSON'}'
 fi
 
+log "发送数据: $JSON"
+
 # 发送心跳
-curl -s -X POST "${endpoint}" -H "Content-Type: application/json" -d "$JSON"`;
+RESPONSE=$(curl -s -X POST "${endpoint}" -H "Content-Type: application/json" -d "$JSON" 2>&1)
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 0 ]; then
+  log "发送成功"
+  [ "$DEBUG" = "1" ] && echo "$RESPONSE" >&2
+else
+  log "发送失败: 退出码 $EXIT_CODE"
+  echo "ERROR: 心跳发送失败" >&2
+fi`;
 }
 
 function generatePythonScript(endpoint) {
