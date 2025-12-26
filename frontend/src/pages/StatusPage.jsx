@@ -93,23 +93,7 @@ export default function StatusPage() {
     }
   };
 
-  const loadSettings = async () => {
-    try {
-      const data = await api.getSettings();
-      const settings = {
-        siteName: data.siteName || BRAND.siteName,
-        siteSubtitle: data.siteSubtitle || BRAND.siteSubtitle,
-        pageTitle: data.pageTitle || BRAND.pageTitle,
-        hostDisplayMode: data.hostDisplayMode || 'card'
-      };
-      setSiteSettings(settings);
 
-
-      document.title = `${settings.siteName} - ${settings.pageTitle}`;
-    } catch (error) {
-      console.error('加载网站设置失败:', error);
-    }
-  };
 
   useEffect(() => {
     loadData();
@@ -126,7 +110,6 @@ export default function StatusPage() {
     if (!autoRefresh) return;
 
     const timer = setInterval(() => {
-      console.log('[StatusPage] 自动刷新触发', new Date().toLocaleTimeString());
       loadDataRef.current();
     }, REFRESH_INTERVAL);
 
@@ -134,7 +117,8 @@ export default function StatusPage() {
   }, [autoRefresh]);
 
 
-  const calculateAvgResponseTime = () => {
+  // 使用 useMemo 缓存平均响应时间计算
+  const avgResponseTime = useMemo(() => {
     if (sites.length === 0) return 0;
 
     let totalResponseTime = 0;
@@ -142,7 +126,6 @@ export default function StatusPage() {
 
     for (const site of sites) {
       const siteHistory = historyCache[site.id]?.history || [];
-
       const recentRecords = siteHistory.slice(0, 30);
 
       for (const record of recentRecords) {
@@ -154,14 +137,14 @@ export default function StatusPage() {
     }
 
     return totalCount > 0 ? Math.round(totalResponseTime / totalCount) : 0;
-  };
+  }, [sites, historyCache]);
 
-  const globalStats = {
+  const globalStats = useMemo(() => ({
     total: sites.length,
     online: sites.filter(s => s.status === 'online').length,
     offline: sites.filter(s => s.status === 'offline').length,
-    avgResponseTime: calculateAvgResponseTime(),
-  };
+    avgResponseTime,
+  }), [sites, avgResponseTime]);
 
 
   const lastCheckTime = sites.length > 0

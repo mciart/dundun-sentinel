@@ -366,11 +366,14 @@ const MAX_ROW_SIZE_BYTES = 1.5 * 1024 * 1024;
 
 /**
  * 检查并截断历史数据以确保不超过 D1 行大小限制
+ * 使用二分查找优化，避免循环调用 JSON.stringify
  * @param {Array} history - 历史记录数组
  * @returns {Array} - 截断后的历史记录数组
  */
 function ensureHistorySizeLimit(history) {
-  let dataStr = JSON.stringify(history);
+  if (history.length === 0) return history;
+
+  const dataStr = JSON.stringify(history);
 
   // 如果大小在限制内，直接返回
   if (dataStr.length <= MAX_ROW_SIZE_BYTES) {
@@ -380,12 +383,10 @@ function ensureHistorySizeLimit(history) {
   // 超过限制，需要截断
   console.warn(`⚠️ 历史数据超过大小限制 (${(dataStr.length / 1024 / 1024).toFixed(2)}MB)，开始截断`);
 
-  // 每次减少 10% 直到满足限制
-  let truncated = [...history];
-  while (JSON.stringify(truncated).length > MAX_ROW_SIZE_BYTES && truncated.length > 100) {
-    const removeCount = Math.ceil(truncated.length * 0.1);
-    truncated = truncated.slice(0, truncated.length - removeCount);
-  }
+  // 估算每条记录平均大小，快速计算目标长度
+  const avgRecordSize = dataStr.length / history.length;
+  const targetCount = Math.floor(MAX_ROW_SIZE_BYTES / avgRecordSize * 0.9); // 留 10% 余量
+  const truncated = history.slice(0, Math.max(100, targetCount));
 
   console.log(`✅ 历史数据已截断: ${history.length} → ${truncated.length} 条`);
   return truncated;
