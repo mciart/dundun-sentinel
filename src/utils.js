@@ -50,7 +50,7 @@ export function formatDuration(ms) {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
-  
+
   if (days > 0) {
     return `${days}天${hours % 24}小时${minutes % 60}分钟`;
   } else if (hours > 0) {
@@ -77,6 +77,9 @@ export function jsonResponse(data, status = 200) {
     status,
     headers: {
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       ...corsHeaders
     }
   });

@@ -46,11 +46,19 @@ async function request(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  // 添加 30 秒超时保护
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
     const response = await fetch(url, {
       ...options,
       headers,
+      cache: 'no-store',
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -60,6 +68,11 @@ async function request(endpoint, options = {}) {
 
     return data;
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      console.error('API 请求超时:', endpoint);
+      throw new Error('请求超时');
+    }
     console.error('API 请求错误:', error);
     throw error;
   }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Server,
   ServerCog,
@@ -115,10 +115,21 @@ export default function StatusPage() {
     loadData();
   }, []);
 
+  // 使用 ref 保存最新的 loadData 函数，避免闭包陷阱
+  const loadDataRef = useRef(loadData);
+  useEffect(() => {
+    loadDataRef.current = loadData;
+  });
+
+  // 定时刷新：每分钟执行一次
   useEffect(() => {
     if (!autoRefresh) return;
 
-    const timer = setInterval(loadData, REFRESH_INTERVAL);
+    const timer = setInterval(() => {
+      console.log('[StatusPage] 自动刷新触发', new Date().toLocaleTimeString());
+      loadDataRef.current();
+    }, REFRESH_INTERVAL);
+
     return () => clearInterval(timer);
   }, [autoRefresh]);
 
