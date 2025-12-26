@@ -190,6 +190,38 @@ export async function getSite(env, siteId) {
 }
 
 /**
+ * 通过 Push Token 获取站点（优化：避免读取所有站点）
+ */
+export async function getSiteByPushToken(env, token) {
+  const row = await env.DB.prepare(
+    'SELECT * FROM sites WHERE push_token = ? AND monitor_type = ?'
+  ).bind(token, 'push').first();
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    name: row.name,
+    url: row.url,
+    monitorType: row.monitor_type,
+    status: row.status,
+    responseTime: row.response_time,
+    lastCheck: row.last_check,
+    groupId: row.group_id,
+    sortOrder: row.sort_order,
+    hostSortOrder: row.host_sort_order || 0,
+    showUrl: !!row.show_url,
+    createdAt: row.created_at,
+    pushToken: row.push_token,
+    pushInterval: row.push_interval,
+    lastHeartbeat: row.last_heartbeat,
+    pushData: row.push_data ? JSON.parse(row.push_data) : null,
+    showInHostPanel: !!row.show_in_host_panel,
+    notifyEnabled: !!row.notify_enabled
+  };
+}
+
+/**
  * 创建站点
  */
 export async function createSite(env, site) {

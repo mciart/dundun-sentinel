@@ -1,5 +1,5 @@
 // Push/心跳监控 API 控制器 - D1 版本（直接写入数据库，无内存缓存）
-import { getAllSites, getSite, updatePushHeartbeat } from '../../core/storage.js';
+import { getSiteByPushToken, getSite, updatePushHeartbeat } from '../../core/storage.js';
 import { jsonResponse, errorResponse, corsHeaders } from '../../utils.js';
 import { generatePushToken, isValidPushToken } from '../../monitors/push.js';
 
@@ -8,6 +8,7 @@ import { generatePushToken, isValidPushToken } from '../../monitors/push.js';
  * POST /api/push/:token
  * 
  * D1 版本：直接写入数据库，无需担心写入配额
+ * 优化：通过 Token 直接查询站点，避免读取所有站点
  */
 export async function handlePushReport(request, env, token) {
   try {
@@ -16,10 +17,8 @@ export async function handlePushReport(request, env, token) {
       return errorResponse('无效的 Token', 400);
     }
 
-    const sites = await getAllSites(env);
-
-    // 查找对应的站点
-    const site = sites.find(s => s.pushToken === token && s.monitorType === 'push');
+    // 直接通过 Token 查询站点（优化：避免读取所有站点）
+    const site = await getSiteByPushToken(env, token);
 
     if (!site) {
       return errorResponse('站点不存在或 Token 无效', 404);
