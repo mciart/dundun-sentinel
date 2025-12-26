@@ -44,7 +44,6 @@ export async function getSettings(env) {
     pageTitle: BRAND.pageTitle,
     historyHours: SETTINGS.historyHours,
     retentionHours: SETTINGS.retentionHours,
-    statusChangeDebounceMinutes: SETTINGS.statusChangeDebounceMinutes,
     hostDisplayMode: SETTINGS.hostDisplayMode,
     hostPanelExpanded: SETTINGS.hostPanelExpanded,
     notifications: NOTIFICATIONS.defaults,

@@ -28,8 +28,6 @@ export async function handleMonitor(env, ctx, options = {}) {
     return;
   }
 
-  const debounceMinutes = settings.statusChangeDebounceMinutes || 3;
-
   // 根据监控类型筛选需要主动检测的站点（排除 Push 类型）
   const sitesToCheck = sites.filter(s => s.monitorType !== 'push');
 
@@ -65,11 +63,12 @@ export async function handleMonitor(env, ctx, options = {}) {
   }
 
   const previousStatus = site.status;
-  const { statusChanged, newStatus } = checkWithDebounce(site, result, debounceMinutes);
+  const statusChanged = previousStatus !== result.status;
 
-  // 处理状态变化通知
-  if (statusChanged && previousStatus !== newStatus) {
-    await handleStatusChange(env, ctx, site, previousStatus, newStatus, result, settings);
+  // 处理状态变化通知（立即发送，无防抖）
+  if (statusChanged) {
+    console.log(`🔄 ${site.name} 状态变化: ${previousStatus} → ${result.status}`);
+    await handleStatusChange(env, ctx, site, previousStatus, result.status, result, settings);
   }
 
   // 更新站点状态
@@ -414,50 +413,7 @@ async function handleCertAlert(env, ctx, site, certInfo, settings) {
   }
 }
 
-/**
- * 状态防抖检测
- * 
- * 防抖逻辑改进：
- * - 恢复（offline → online/slow）：立即确认，不防抖（用户希望尽快看到恢复）
- * - 故障（online/slow → offline）：需要持续异常达到防抖时间才确认（避免短暂波动触发告警）
- * 
- * 注意：由于防抖状态不持久化到数据库，每次监控运行时 pending 状态会重置。
- * 这意味着实际上只有同一次监控周期内的多次检测才会累积防抖时间。
- * 对于恢复场景，立即确认是更好的用户体验。
- */
-function checkWithDebounce(site, result, debounceMinutes) {
-  const detectedStatus = result.status;
-  const currentStatus = site.status;
 
-  // 首次检测（status 为 unknown），直接确认
-  if (currentStatus === 'unknown') {
-    return { statusChanged: true, newStatus: detectedStatus, pendingChanged: false };
-  }
-
-  // 状态相同，无变化
-  if (detectedStatus === currentStatus) {
-    return { statusChanged: false, newStatus: currentStatus, pendingChanged: false };
-  }
-
-  // ===== 恢复场景：立即确认 =====
-  // offline → online 或 offline → slow
-  // 用户希望站点恢复时立即看到，没必要防抖
-  if (currentStatus === 'offline' && (detectedStatus === 'online' || detectedStatus === 'slow')) {
-    console.log(`🔄 ${site.name} 恢复检测: ${currentStatus} → ${detectedStatus}，立即确认`);
-    return { statusChanged: true, newStatus: detectedStatus, pendingChanged: false };
-  }
-
-  // ===== 故障场景：需要防抖 =====
-  // online/slow → offline
-  // 为了避免短暂网络波动触发告警，需要持续异常一段时间
-  // 但由于防抖状态不持久化，我们无法跨监控周期累积时间
-  // 这里简化处理：直接确认状态变化，依赖通知层面的防抖（如果有）
-  // 
-  // TODO: 如果需要真正的防抖，应该将 statusPending 和 statusPendingStartTime 存入数据库
-
-  console.log(`🔄 ${site.name} 状态变化: ${currentStatus} → ${detectedStatus}，确认更新`);
-  return { statusChanged: true, newStatus: detectedStatus, pendingChanged: false };
-}
 
 /**
  * 批量检测 SSL 证书

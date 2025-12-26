@@ -29,8 +29,6 @@ export const SETTINGS = {
   historyHours: 24,
   // 默认数据保留时长（小时）- 30天
   retentionHours: 720,
-  // 状态变更防抖时间（分钟）
-  statusChangeDebounceMinutes: 3,
   // 默认主机面板显示模式
   hostDisplayMode: 'card',
   // 默认主机面板展开状态

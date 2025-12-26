@@ -51,7 +51,6 @@ export default function AdminPage() {
   const [settings, setSettings] = useState({
     historyHours: 24,
     retentionHours: 720,
-    statusChangeDebounceMinutes: 3
   });
   const [stats, setStats] = useState(null);
   const [websiteSettings, setWebsiteSettings] = useState({
@@ -928,50 +927,7 @@ export default function AdminPage() {
               transition={{ duration: DURATION.normal, ease: EASING.bounce }}
               className="space-y-6"
             >
-              {/* 通知防抖设置 */}
-              <div className="glass-card p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/20">
-                    <Activity className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                      通知防抖设置
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      防止网络短暂波动导致误报，持续异常达到设定时间后才发送通知（不影响状态显示和历史记录）
-                    </p>
-                  </div>
-                </div>
 
-                <div className="ml-12">
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    防抖时间（分钟）
-                  </label>
-                  <input
-                    type="number"
-                    min="0.5"
-                    max="30"
-                    step="0.5"
-                    value={settings.statusChangeDebounceMinutes ?? ''}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      const numeric = value === '' ? '' : Math.max(0.5, Math.min(30, parseFloat(value)));
-                      setSettings({ ...settings, statusChangeDebounceMinutes: numeric === '' ? '' : Number(numeric) });
-                    }}
-                    onBlur={(e) => {
-                      if (e.target.value === '') {
-                        setSettings({ ...settings, statusChangeDebounceMinutes: 3 });
-                      }
-                    }}
-                    className="input-sm w-full max-w-xs"
-                    placeholder="推荐 3 分钟"
-                  />
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    范围 0.5-30 分钟。持续异常达到此时间才发送通知，设置越小响应越快但可能增加误报。历史记录和状态显示不受此设置影响。
-                  </p>
-                </div>
-              </div>
 
               <div className="glass-card p-6">
                 <div className="flex items-center gap-3 mb-6">
