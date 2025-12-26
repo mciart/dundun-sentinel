@@ -11,9 +11,13 @@ export function HistoryProvider({ children }) {
   // 获取历史数据 - 每次调用都直接请求，不做并发防护
   const fetchAllHistory = useCallback(async (hours = 24) => {
     setLoading(true);
+    const startTime = Date.now();
 
     try {
       const data = await api.getAllHistory(hours);
+      const siteCount = Object.keys(data).length;
+      const elapsed = Date.now() - startTime;
+      console.log(`[HistoryContext] 获取历史数据成功: ${siteCount} 个站点, 耗时 ${elapsed}ms, 时间: ${new Date().toLocaleTimeString()}`);
       setHistoryCache(data);
       setCacheVersion(v => v + 1); // 强制触发组件更新
       return data;
