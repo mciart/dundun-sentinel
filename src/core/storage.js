@@ -566,7 +566,7 @@ export async function getSiteHistoryAggregated(env, siteId, hours = 24) {
 }
 
 /**
- * 批量获取多个站点的聚合历史记录（核心优化：N 站点只读 N 行）
+ * 批量获取多个站点的聚合历史记录（优化版：单次遍历）
  */
 export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
   if (!siteIds || siteIds.length === 0) return {};
@@ -580,29 +580,35 @@ export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
   const historyMap = {};
 
   for (const row of (results.results || [])) {
-    let history = [];
+    let history;
     try {
       history = JSON.parse(row.data);
     } catch (e) {
-      history = [];
+      historyMap[row.site_id] = [];
+      continue;
     }
 
-    // 按时间过滤并转换格式
-    historyMap[row.site_id] = history
-      .filter(r => r.t > cutoff)
-      .map(r => ({
-        timestamp: r.t,
-        status: r.s,
-        statusCode: r.c,
-        responseTime: r.r,
-        message: r.m
-      }));
+    // 单次遍历：过滤 + 转换
+    const filtered = [];
+    for (let i = 0, len = history.length; i < len; i++) {
+      const r = history[i];
+      if (r.t > cutoff) {
+        filtered.push({
+          timestamp: r.t,
+          status: r.s,
+          statusCode: r.c,
+          responseTime: r.r,
+          message: r.m
+        });
+      }
+    }
+    historyMap[row.site_id] = filtered;
   }
 
   // 确保所有请求的站点都有返回值
-  for (const siteId of siteIds) {
-    if (!historyMap[siteId]) {
-      historyMap[siteId] = [];
+  for (let i = 0, len = siteIds.length; i < len; i++) {
+    if (!historyMap[siteIds[i]]) {
+      historyMap[siteIds[i]] = [];
     }
   }
 
