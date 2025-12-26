@@ -4,7 +4,8 @@ import * as db from './core/storage.js';
 import { sendNotifications } from './notifications/index.js';
 
 /**
- * 执行监控检测 - D1 版本
+ * 执行监控检测 - D1 版本（轮流检测模式）
+ * 每次 Cron 只检测一个站点，轮流进行，减少 CPU 消耗
  * @param {Object} env - 环境变量
  * @param {Object} ctx - 上下文
  * @param {Object} options - 选项
@@ -13,7 +14,7 @@ import { sendNotifications } from './notifications/index.js';
 export async function handleMonitor(env, ctx, options = {}) {
   const { forceSSL = false } = options;
   const startTime = Date.now();
-  console.log('=== 开始监控检测 (D1) ===');
+  console.log('=== 开始监控检测 (轮流模式) ===');
 
   // 确保数据库已初始化
   await db.initDatabase(env);
@@ -29,94 +30,97 @@ export async function handleMonitor(env, ctx, options = {}) {
 
   const debounceMinutes = settings.statusChangeDebounceMinutes || 3;
 
-  console.log(`📋 配置: 检测间隔=1分钟, 防抖时间=${debounceMinutes}分钟`);
-
-  // 根据监控类型分别检测（排除 Push 类型，Push 通过心跳上报直接写入 D1）
+  // 根据监控类型筛选需要主动检测的站点（排除 Push 类型）
   const sitesToCheck = sites.filter(s => s.monitorType !== 'push');
-  const checkPromises = sitesToCheck.map(site => {
-    const checker = getMonitorForSite(site);
-    return checker(site, now);
-  });
-  const results = await Promise.all(checkPromises);
 
-  // 处理反转模式：交换 online 和 offline 状态
-  for (let i = 0; i < sitesToCheck.length; i++) {
-    const site = sitesToCheck[i];
-    if (site.inverted && results[i]) {
-      const result = results[i];
-      if (result.status === 'online' || result.status === 'slow') {
-        result.status = 'offline';
-        result.message = `[反转] ${result.message || '服务可访问'}`;
-      } else if (result.status === 'offline') {
-        result.status = 'online';
-        result.message = `[反转] ${result.message || '服务不可访问'}`;
-      }
+  if (sitesToCheck.length === 0) {
+    console.log('没有需要主动检测的站点');
+    // 仍然需要处理 Push 站点超时
+    await handlePushSitesTimeout(env, ctx, sites, settings, now);
+    return;
+  }
+
+  // 获取当前检测索引
+  let checkIndex = await db.getConfig(env, 'checkIndex') || 0;
+  // 确保索引在有效范围内
+  checkIndex = checkIndex % sitesToCheck.length;
+
+  // 只检测当前索引对应的站点
+  const site = sitesToCheck[checkIndex];
+  console.log(`📋 轮流检测: 站点 ${checkIndex + 1}/${sitesToCheck.length} - ${site.name}`);
+
+  // 执行检测
+  const checker = getMonitorForSite(site);
+  const result = await checker(site, now);
+
+  // 处理反转模式
+  if (site.inverted && result) {
+    if (result.status === 'online' || result.status === 'slow') {
+      result.status = 'offline';
+      result.message = `[反转] ${result.message || '服务可访问'}`;
+    } else if (result.status === 'offline') {
+      result.status = 'online';
+      result.message = `[反转] ${result.message || '服务不可访问'}`;
     }
   }
 
-  // 准备批量更新
-  const statusUpdates = [];
-  const historyRecords = [];
-  let onlineCount = 0;
+  const previousStatus = site.status;
+  const { statusChanged, newStatus } = checkWithDebounce(site, result, debounceMinutes);
 
-  for (let i = 0; i < sitesToCheck.length; i++) {
-    const site = sitesToCheck[i];
-    const result = results[i];
-
-    const previousStatus = site.status;
-    const { statusChanged, newStatus, pendingChanged } = checkWithDebounce(site, result, debounceMinutes);
-
-    // 处理状态变化通知
-    if (statusChanged && previousStatus !== newStatus) {
-      await handleStatusChange(env, ctx, site, previousStatus, newStatus, result, settings);
-    }
-
-    // 收集更新 - 使用实际检测状态，防抖只影响通知
-    statusUpdates.push({
-      siteId: site.id,
-      status: result.status,  // 使用实际检测状态，而非防抖后的状态
-      responseTime: result.responseTime,
-      lastCheck: now,
-      message: result.message || null
-    });
-
-    // 始终写入历史记录（实时反映检测结果，防抖只影响通知）
-    historyRecords.push({
-      siteId: site.id,
-      timestamp: now,
-      status: result.status,  // 使用实际检测状态，而非防抖后的状态
-      statusCode: result.statusCode,
-      responseTime: result.responseTime,
-      message: result.message
-    });
-
-    if (result.status === 'online') {
-      onlineCount++;
-    }
+  // 处理状态变化通知
+  if (statusChanged && previousStatus !== newStatus) {
+    await handleStatusChange(env, ctx, site, previousStatus, newStatus, result, settings);
   }
 
-  // 统计 Push 站点
+  // 更新站点状态
+  await db.batchUpdateSiteStatus(env, [{
+    siteId: site.id,
+    status: result.status,
+    responseTime: result.responseTime,
+    lastCheck: now,
+    message: result.message || null
+  }]);
+
+  // 写入历史记录
+  await db.batchAddHistory(env, [{
+    siteId: site.id,
+    timestamp: now,
+    status: result.status,
+    statusCode: result.statusCode,
+    responseTime: result.responseTime,
+    message: result.message
+  }]);
+
+  // 更新检测索引（下次检测下一个站点）
+  const nextIndex = (checkIndex + 1) % sitesToCheck.length;
+  await db.setConfig(env, 'checkIndex', nextIndex);
+
+  // 统计在线站点数（基于数据库中的状态）
+  let onlineCount = sites.filter(s => s.status === 'online').length;
+  if (result.status === 'online' && previousStatus !== 'online') onlineCount++;
+  if (result.status !== 'online' && previousStatus === 'online') onlineCount--;
+
+  // 处理 Push 站点超时
   const pushSites = sites.filter(s => s.monitorType === 'push');
-  for (const site of pushSites) {
-    if (site.status === 'online') {
-      onlineCount++;
-    }
+  for (const pushSite of pushSites) {
     // 检查 Push 站点超时
-    const pushTimeout = (site.pushInterval || 60) * 2 * 1000; // 超时时间为间隔的2倍
-    if (site.lastHeartbeat && now - site.lastHeartbeat > pushTimeout) {
-      if (site.status !== 'offline') {
-        const previousStatus = site.status;
-        statusUpdates.push({
-          siteId: site.id,
+    const pushTimeout = (pushSite.pushInterval || 60) * 2 * 1000; // 超时时间为间隔的2倍
+    if (pushSite.lastHeartbeat && now - pushSite.lastHeartbeat > pushTimeout) {
+      if (pushSite.status !== 'offline') {
+        const prevStatus = pushSite.status;
+        console.log(`⚠️ Push 站点 ${pushSite.name} 心跳超时`);
+
+        // 更新状态
+        await db.batchUpdateSiteStatus(env, [{
+          siteId: pushSite.id,
           status: 'offline',
           responseTime: 0,
           lastCheck: now,
           message: '心跳超时'
-        });
-        console.log(`⚠️ Push 站点 ${site.name} 心跳超时`);
+        }]);
 
         // 发送离线通知
-        await handleStatusChange(env, ctx, site, previousStatus, 'offline', {
+        await handleStatusChange(env, ctx, pushSite, prevStatus, 'offline', {
           status: 'offline',
           message: '心跳超时',
           responseTime: 0
@@ -125,18 +129,8 @@ export async function handleMonitor(env, ctx, options = {}) {
     }
   }
 
-  // 批量更新站点状态
-  if (statusUpdates.length > 0) {
-    await db.batchUpdateSiteStatus(env, statusUpdates);
-  }
-
-  // 批量添加历史记录
-  if (historyRecords.length > 0) {
-    await db.batchAddHistory(env, historyRecords);
-  }
-
-  // 增加检测统计
-  await db.incrementStats(env, 'checks', sites.length);
+  // 增加检测统计（只计算当前检测的这一个站点）
+  await db.incrementStats(env, 'checks', 1);
 
   // 每小时清理一次旧数据（在整点执行，与 SSL 检测错开）
   const retentionHours = settings.retentionHours || 720;
@@ -216,6 +210,36 @@ export async function handleCertCheck(env, ctx) {
   }
 
   console.log('=== 每日维护任务完成 ===');
+}
+
+/**
+ * 处理 Push 站点超时（当没有主动检测站点时使用）
+ */
+async function handlePushSitesTimeout(env, ctx, sites, settings, now) {
+  const pushSites = sites.filter(s => s.monitorType === 'push');
+  for (const pushSite of pushSites) {
+    const pushTimeout = (pushSite.pushInterval || 60) * 2 * 1000;
+    if (pushSite.lastHeartbeat && now - pushSite.lastHeartbeat > pushTimeout) {
+      if (pushSite.status !== 'offline') {
+        const prevStatus = pushSite.status;
+        console.log(`⚠️ Push 站点 ${pushSite.name} 心跳超时`);
+
+        await db.batchUpdateSiteStatus(env, [{
+          siteId: pushSite.id,
+          status: 'offline',
+          responseTime: 0,
+          lastCheck: now,
+          message: '心跳超时'
+        }]);
+
+        await handleStatusChange(env, ctx, pushSite, prevStatus, 'offline', {
+          status: 'offline',
+          message: '心跳超时',
+          responseTime: 0
+        }, settings);
+      }
+    }
+  }
 }
 
 /**
