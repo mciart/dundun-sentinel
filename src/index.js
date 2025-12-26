@@ -1,4 +1,4 @@
-import { handleMonitor, handleCertCheck } from './monitor';
+import { handleMonitor } from './monitor';
 import { handleAPI } from './api';
 
 export default {
@@ -15,13 +15,13 @@ export default {
     try {
       // 尝试从 Assets 获取文件
       const assetResponse = await env.ASSETS.fetch(request);
-      
+
       // 如果是 404 且不是静态文件（没有扩展名），返回 index.html（SPA 路由）
       if (assetResponse.status === 404 && !path.match(/\.[a-zA-Z0-9]+$/)) {
         const indexRequest = new Request(new URL('/', request.url), request);
         return env.ASSETS.fetch(indexRequest);
       }
-      
+
       return assetResponse;
     } catch (error) {
       // 如果 Assets 不可用（本地开发未启用 Assets），返回简单消息
@@ -38,12 +38,7 @@ export default {
       console.log('Cron 表达式:', cronExpr);
       console.log('Cron 触发时间 (北京):', new Date(scheduledTime.getTime() + 8 * 60 * 60 * 1000).toLocaleString('zh-CN'));
 
-      if (cronExpr === '0 4 * * *') {
-        console.log('执行SSL证书检测任务...');
-        await handleCertCheck(env, ctx);
-      } else {
-        await handleMonitor(env, ctx);
-      }
+      await handleMonitor(env, ctx);
     } catch (error) {
       console.error('Cron 执行错误:', error);
     }

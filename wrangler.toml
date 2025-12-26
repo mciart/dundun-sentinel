@@ -19,9 +19,9 @@ binding = "DB"
 database_name = "dundun-sentinel-db"
 database_id = "YOUR_D1_DATABASE_ID"
 
-# 定时任务：每分钟检测一次，每天凌晨4点检测SSL证书
+# 定时任务：每分钟检测一次
 [triggers]
-crons = ["* * * * *", "0 4 * * *"]
+crons = ["* * * * *"]
 
 # 本地开发配置
 [vars]

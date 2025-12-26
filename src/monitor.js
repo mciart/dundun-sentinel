@@ -138,15 +138,13 @@ export async function handleMonitor(env, ctx, options = {}) {
   // 增加检测统计
   await db.incrementStats(env, 'checks', sites.length);
 
-  // 每 6 小时清理一次旧数据（降低频率以节省 CPU 配额）
+  // 每小时清理一次旧数据（异步执行，不阻塞主流程）
   const retentionHours = settings.retentionHours || 720;
   const lastCleanup = await db.getConfig(env, 'lastCleanup') || 0;
-  const cleanupInterval = 6 * 60 * 60 * 1000; // 6 小时
+  const cleanupInterval = 60 * 60 * 1000; // 1 小时
   if (now - lastCleanup >= cleanupInterval) {
     console.log('🧹 触发异步清理旧历史记录...');
-    // 先标记已清理，避免重复触发
     await db.setConfig(env, 'lastCleanup', now);
-    // 异步执行清理，不阻塞主流程
     ctx && ctx.waitUntil((async () => {
       try {
         await db.cleanupOldHistory(env, retentionHours);
@@ -158,17 +156,14 @@ export async function handleMonitor(env, ctx, options = {}) {
     })());
   }
 
-  // SSL 证书检测 - 每 4 小时检测一次，或强制检测（异步执行）
+  // 每小时检测一次 SSL 证书（异步执行，不阻塞主流程）
   const lastSslCheck = await db.getConfig(env, 'lastSslCheck') || 0;
-  const sslCheckInterval = 4 * 60 * 60 * 1000; // 4 小时
-  const shouldCheckSSL = forceSSL || (now - lastSslCheck >= sslCheckInterval);
-  if (shouldCheckSSL) {
+  const sslCheckInterval = 60 * 60 * 1000; // 1 小时
+  if (now - lastSslCheck >= sslCheckInterval) {
     const httpSites = sites.filter(s => s.monitorType !== 'dns' && s.monitorType !== 'tcp' && s.monitorType !== 'push');
     if (httpSites.length > 0) {
-      console.log('🔒 触发异步SSL证书检测...' + (forceSSL ? '（手动触发）' : ''));
-      // 先标记已检测，避免重复触发
+      console.log('🔒 触发异步SSL证书检测...');
       await db.setConfig(env, 'lastSslCheck', now);
-      // 异步执行 SSL 检测，不阻塞主流程
       ctx && ctx.waitUntil((async () => {
         try {
           await checkSSLCertificates(env, ctx, httpSites, settings);
@@ -185,23 +180,36 @@ export async function handleMonitor(env, ctx, options = {}) {
 }
 
 /**
- * SSL 证书检测任务
+ * SSL 证书检测任务 + 历史数据清理（每天凌晨 4 点执行）
  */
 export async function handleCertCheck(env, ctx) {
-  console.log('开始执行SSL证书检测任务...');
+  console.log('=== 开始执行每日维护任务 (凌晨 4 点) ===');
 
   await db.initDatabase(env);
 
   const sites = await db.getAllSites(env);
   const settings = await db.getSettings(env);
 
-  const httpSites = sites.filter(s => s.monitorType !== 'dns' && s.monitorType !== 'tcp' && s.monitorType !== 'push');
-
-  if (httpSites.length > 0) {
-    await checkSSLCertificates(env, ctx, httpSites, settings);
+  // 1. 清理旧历史数据
+  console.log('🧹 清理旧历史记录...');
+  const retentionHours = settings.retentionHours || 720;
+  try {
+    await db.cleanupOldHistory(env, retentionHours);
+    await db.cleanupOldPushHistory(env, 168);
+    console.log('✅ 历史数据清理完成');
+  } catch (error) {
+    console.error('❌ 历史数据清理失败:', error.message);
   }
 
-  console.log('SSL证书检测完成');
+  // 2. SSL 证书检测
+  const httpSites = sites.filter(s => s.monitorType !== 'dns' && s.monitorType !== 'tcp' && s.monitorType !== 'push');
+  if (httpSites.length > 0) {
+    console.log('🔒 检测SSL证书...');
+    await checkSSLCertificates(env, ctx, httpSites, settings);
+    console.log('✅ SSL证书检测完成');
+  }
+
+  console.log('=== 每日维护任务完成 ===');
 }
 
 /**
