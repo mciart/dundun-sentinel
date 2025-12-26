@@ -1043,8 +1043,16 @@ export async function setCertificateAlert(env, siteId, alertTime, alertType) {
 
 /**
  * 初始化数据库表结构
+ * 使用模块级变量缓存，避免每分钟重复检查
  */
+let _dbInitialized = false;
+
 export async function initDatabase(env) {
+  // 如果已初始化，直接返回
+  if (_dbInitialized) {
+    return false;
+  }
+
   // 检查是否已初始化
   try {
     const check = await env.DB.prepare(
@@ -1054,6 +1062,7 @@ export async function initDatabase(env) {
     if (check) {
       // 表已存在，执行迁移检查
       await runMigrations(env);
+      _dbInitialized = true;
       return false; // 已初始化
     }
   } catch (e) {

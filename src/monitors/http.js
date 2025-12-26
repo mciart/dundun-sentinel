@@ -104,6 +104,15 @@ export async function checkSite(site, checkTime) {
       } catch (e) {
         message = isUp ? 'OK' : message;
       }
+    } else {
+      // 不需要读取响应体时，取消读取以释放资源（避免 Cloudflare 死锁警告）
+      try {
+        if (response.body) {
+          await response.body.cancel();
+        }
+      } catch (_) {
+        // 忽略取消错误
+      }
     }
 
     let finalStatus = isUp ? 'online' : 'offline';
@@ -151,7 +160,7 @@ export async function checkSite(site, checkTime) {
       message = '网络错误';
     } else {
       let hostname = '';
-      try { hostname = new URL(site.url).hostname; } catch {}
+      try { hostname = new URL(site.url).hostname; } catch { }
       const dns = await dnsResolveStatus(hostname, MONITOR.defaultUserAgent);
       if (!(dns === 'nxdomain' || dns === 'dns_error' || dns === 'nodata')) {
         if (hasCertIssue) {
