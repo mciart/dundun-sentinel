@@ -1,7 +1,6 @@
 // Dashboard controllers: public data, stats, history batch, and incidents - D1 版本
 import { jsonResponse, errorResponse } from '../../utils.js';
 import * as db from '../../core/storage.js';
-import { calculateStats } from '../../core/stats.js';
 import { BRAND, SETTINGS } from '../../config/index.js';
 
 export async function getDashboardData(request, env) {
@@ -88,25 +87,40 @@ export async function getStats(request, env) {
 export async function getHistoryBatch(request, env) {
   try {
     const url = new URL(request.url);
-    const hours = parseInt(url.searchParams.get('hours') || '24', 10);
+    const hours = parseInt(url.searchParams.get('hours') || '1', 10);
 
     const sites = await db.getAllSites(env);
     const siteIds = sites.map(s => s.id);
 
-    // 批量获取历史记录
+    // 批量获取历史记录（不再计算统计，由前端按需计算）
     const historyMap = await db.batchGetSiteHistory(env, siteIds, hours);
 
-    // 计算统计数据
-    const result = {};
-    for (const site of sites) {
-      const history = historyMap[site.id] || [];
-      const stats = calculateStats(history);
-      result[site.id] = { history, stats };
-    }
-
-    return jsonResponse(result);
+    // 返回带缓存控制头的响应
+    return new Response(JSON.stringify(historyMap), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=60, s-maxage=60'
+      }
+    });
   } catch (error) {
     return errorResponse('获取历史数据失败: ' + error.message, 500);
+  }
+}
+
+/**
+ * 获取数据版本号（用于缓存控制）
+ */
+export async function getDataVersion(request, env) {
+  try {
+    const version = await db.getDataVersion(env);
+    return new Response(JSON.stringify({ version }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    });
+  } catch (error) {
+    return errorResponse('获取版本失败: ' + error.message, 500);
   }
 }
 

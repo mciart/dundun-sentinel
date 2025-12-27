@@ -35,6 +35,27 @@ export async function setConfig(env, key, value) {
 }
 
 /**
+ * 获取数据版本号（用于缓存控制）
+ */
+export async function getDataVersion(env) {
+  const result = await env.DB.prepare(
+    "SELECT value FROM config WHERE key = 'dataVersion'"
+  ).first();
+  return result ? JSON.parse(result.value) : Date.now();
+}
+
+/**
+ * 更新数据版本号（在数据变化时调用）
+ */
+export async function updateDataVersion(env) {
+  const now = Date.now();
+  await env.DB.prepare(
+    "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES ('dataVersion', ?, ?)"
+  ).bind(JSON.stringify(now), now).run();
+  return now;
+}
+
+/**
  * 获取全局设置
  */
 export async function getSettings(env) {
@@ -549,6 +570,8 @@ export async function addHistory(env, siteId, record) {
 export async function batchAddHistory(env, records) {
   if (!records || records.length === 0) return;
   await batchAddHistoryAggregated(env, records);
+  // 更新数据版本号用于缓存失效
+  await updateDataVersion(env);
 }
 
 /**

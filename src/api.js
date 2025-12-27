@@ -56,6 +56,11 @@ export async function handleAPI(request, env, ctx) {
     return await configController.getGroups(request, env);
   }
 
+  // 获取数据版本号（用于缓存控制）
+  if (path === '/api/data-version' && request.method === 'GET') {
+    return await dashboardController.getDataVersion(request, env);
+  }
+
   // 批量获取历史数据（公开接口）
   if (path === '/api/history-batch' && request.method === 'GET') {
     return await dashboardController.getHistoryBatch(request, env);

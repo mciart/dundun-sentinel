@@ -95,8 +95,14 @@ export const api = {
   getIncidents: (limit = 20) =>
     request(`/api/incidents?limit=${limit}`, { auth: false }),
 
-  getAllHistory: (hours = 24) =>
-    request(`/api/history-batch?hours=${hours}`, { auth: false }),
+  getDataVersion: () =>
+    request('/api/data-version', { auth: false }),
+
+  getAllHistory: (hours = 1, version = null) => {
+    const params = new URLSearchParams({ hours });
+    if (version) params.append('v', version);
+    return request(`/api/history-batch?${params}`, { auth: false });
+  },
 
   getSites: () =>
     request('/api/sites'),

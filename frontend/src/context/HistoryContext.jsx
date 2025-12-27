@@ -17,32 +17,32 @@ export function HistoryProvider({ children }) {
     message: record.message || record.m
   });
 
-  // 获取历史数据 - 每次调用都直接请求，不做并发防护
-  const fetchAllHistory = useCallback(async (hours = 24) => {
+  // 获取历史数据 - 带版本号实现缓存控制
+  const fetchAllHistory = useCallback(async (hours = 1) => {
     setLoading(true);
     const startTime = Date.now();
 
     try {
-      const data = await api.getAllHistory(hours);
+      // 获取数据版本号用于缓存控制
+      const { version } = await api.getDataVersion();
 
-      // 标准化所有历史记录
+      // 带版本号请求历史数据（相同版本号会命中 CF 缓存）
+      const data = await api.getAllHistory(hours, version);
+
+      // 新格式：data[siteId] 直接是 history 数组，不再是 { history, stats }
       const normalizedData = {};
-      for (const [siteId, siteData] of Object.entries(data)) {
-        if (siteData.history) {
-          normalizedData[siteId] = {
-            ...siteData,
-            history: siteData.history.map(normalizeHistoryRecord)
-          };
-        } else {
-          normalizedData[siteId] = siteData;
-        }
+      for (const [siteId, historyArray] of Object.entries(data)) {
+        // 如果是数组直接处理，兼容旧格式
+        const history = Array.isArray(historyArray) ? historyArray : (historyArray?.history || []);
+        normalizedData[siteId] = {
+          history: history.map(normalizeHistoryRecord)
+        };
       }
 
-      const siteCount = Object.keys(normalizedData).length;
       const elapsed = Date.now() - startTime;
-      console.log(`[HistoryContext] 获取历史数据成功: ${siteCount} 个站点, 耗时 ${elapsed}ms`);
+      console.log(`[HistoryContext] 历史数据加载完成: ${Object.keys(normalizedData).length} 站点, ${elapsed}ms, v=${version}`);
       setHistoryCache(normalizedData);
-      setCacheVersion(v => v + 1); // 强制触发组件更新
+      setCacheVersion(v => v + 1);
       return normalizedData;
     } catch (error) {
       console.error('❌ 批量获取历史数据失败:', error);
