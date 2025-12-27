@@ -464,7 +464,7 @@ export async function batchAddHistoryAggregated(env, records) {
 
 /**
  * 获取站点历史记录
- * [CPU 优化] 数据库完成排序和过滤，Worker 只负责转发
+ * 按需加载：通过 hours 参数控制数据量
  */
 export async function getSiteHistoryAggregated(env, siteId, hours = 24) {
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
@@ -477,29 +477,28 @@ export async function getSiteHistoryAggregated(env, siteId, hours = 24) {
   `).bind(siteId, cutoff).all();
 
   return (results.results || []).map(r => ({
-    timestamp: r.created_at,
-    status: r.status,
-    statusCode: r.status_code,
-    responseTime: r.response_time,
-    message: r.message
+    t: r.created_at,
+    s: r.status,
+    c: r.status_code,
+    r: r.response_time,
+    m: r.message
   }));
 }
-
 /**
  * 批量获取多个站点的历史记录
- * [CPU 优化] 单次查询，内存分组
+ * 按需加载：前端通过 hours 参数控制数据量
+ * 例如：首页 1 小时，详情页 24 小时
  */
 export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
   if (!siteIds || siteIds.length === 0) return {};
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
   const placeholders = siteIds.map(() => '?').join(',');
 
-  // 获取所有相关记录
   const results = await env.DB.prepare(`
     SELECT site_id, created_at, status, status_code, response_time, message
     FROM history
     WHERE site_id IN (${placeholders}) AND created_at > ?
-    ORDER BY created_at DESC
+    ORDER BY site_id, created_at DESC
   `).bind(...siteIds, cutoff).all();
 
   // 在内存中分组
@@ -509,11 +508,11 @@ export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
   for (const row of (results.results || [])) {
     if (historyMap[row.site_id]) {
       historyMap[row.site_id].push({
-        timestamp: row.created_at,
-        status: row.status,
-        statusCode: row.status_code,
-        responseTime: row.response_time,
-        message: row.message
+        t: row.created_at,
+        s: row.status,
+        c: row.status_code,
+        r: row.response_time,
+        m: row.message
       });
     }
   }

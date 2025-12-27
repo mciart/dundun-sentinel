@@ -72,8 +72,8 @@ export default function StatusPage() {
       setIncidents(inc);
 
 
-      // 实时获取历史数据（聚合表优化后无需缓存）
-      let historyHours = 24;
+      // 实时获取历史数据 - 默认1小时减少D1行读取
+      let historyHours = 1;
       try {
         const savedSettings = localStorage.getItem('monitorSettings');
         if (savedSettings) {
@@ -85,7 +85,7 @@ export default function StatusPage() {
       } catch (error) {
         console.warn('monitorSettings 解析失败，使用默认历史范围', error);
       }
-      fetchAllHistory(historyHours || 24);
+      fetchAllHistory(historyHours || 1);
     } catch (error) {
       console.error('加载仪表盘失败:', error);
     } finally {
