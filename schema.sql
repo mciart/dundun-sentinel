@@ -121,12 +121,29 @@ CREATE TABLE IF NOT EXISTS certificate_alerts (
   FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
 );
 
--- 聚合历史表：每个站点一行，存储 JSON 数组（优化 D1 读写行数）
--- 普通站点: [{t:时间戳,s:状态,c:状态码,r:响应时间,m:消息},...]
--- Push站点: [{t:时间戳,s:状态,r:响应时间,p:{c:cpu,m:mem,d:disk,l:load,T:temp,L:latency,u:uptime,x:custom}},...]
-CREATE TABLE IF NOT EXISTS history_aggregated (
-  site_id TEXT PRIMARY KEY,
-  data TEXT NOT NULL DEFAULT '[]',
-  updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000),
+-- [新增] 历史记录表 (替代 history_aggregated)
+-- 采用单行单记录模式，写入复杂度 O(1)，极大降低 CPU 消耗
+CREATE TABLE IF NOT EXISTS history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  site_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  status TEXT,
+  status_code INTEGER,
+  response_time INTEGER,
+  message TEXT,
+  push_data TEXT, -- 存储 Push 详情 JSON，虽仍是 JSON 但极小且无需频繁解析
   FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+);
+
+-- 为历史记录创建索引，加速查询和清理
+CREATE INDEX IF NOT EXISTS idx_history_site_time ON history(site_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at);
+
+-- 统计表
+CREATE TABLE IF NOT EXISTS stats (
+  date TEXT PRIMARY KEY,
+  writes INTEGER DEFAULT 0,
+  reads INTEGER DEFAULT 0,
+  checks INTEGER DEFAULT 0,
+  created_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
 );

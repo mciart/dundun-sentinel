@@ -378,269 +378,137 @@ export async function batchUpdateSiteStatus(env, updates) {
  * 删除站点
  */
 export async function deleteSite(env, siteId) {
-  // 删除聚合历史、事件、证书告警（级联删除）
+  // 删除历史记录、事件、证书告警（级联删除）
   await env.DB.batch([
-    env.DB.prepare('DELETE FROM history_aggregated WHERE site_id = ?').bind(siteId),
+    env.DB.prepare('DELETE FROM history WHERE site_id = ?').bind(siteId),
     env.DB.prepare('DELETE FROM incidents WHERE site_id = ?').bind(siteId),
     env.DB.prepare('DELETE FROM certificate_alerts WHERE site_id = ?').bind(siteId),
     env.DB.prepare('DELETE FROM sites WHERE id = ?').bind(siteId)
   ]);
 }
 
-// ==================== 历史记录操作 ====================
-
-// 聚合历史数据的最大保留条数（约 3 天 @ 1分钟间隔）
-const MAX_HISTORY_RECORDS = 4320;
-
-// D1 单行最大 2MB，设置 1.5MB 安全阈值（字节）
-const MAX_ROW_SIZE_BYTES = 1.5 * 1024 * 1024;
+// ==================== 历史记录操作 (终极优化版) ====================
 
 /**
- * 检查并截断历史数据以确保不超过 D1 行大小限制
- * 使用二分查找优化，避免循环调用 JSON.stringify
- * @param {Array} history - 历史记录数组
- * @returns {Array} - 截断后的历史记录数组
- */
-function ensureHistorySizeLimit(history) {
-  if (history.length === 0) return history;
-
-  const dataStr = JSON.stringify(history);
-
-  // 如果大小在限制内，直接返回
-  if (dataStr.length <= MAX_ROW_SIZE_BYTES) {
-    return history;
-  }
-
-  // 超过限制，需要截断
-  console.warn(`⚠️ 历史数据超过大小限制 (${(dataStr.length / 1024 / 1024).toFixed(2)}MB)，开始截断`);
-
-  // 估算每条记录平均大小，快速计算目标长度
-  const avgRecordSize = dataStr.length / history.length;
-  const targetCount = Math.floor(MAX_ROW_SIZE_BYTES / avgRecordSize * 0.9); // 留 10% 余量
-  const truncated = history.slice(0, Math.max(100, targetCount));
-
-  console.log(`✅ 历史数据已截断: ${history.length} → ${truncated.length} 条`);
-  return truncated;
-}
-
-/**
- * 添加历史记录到聚合表
- * 普通站点: {t, s, c, r, m}
- * Push站点: {t, s, c, r, m, p: {c, m, d, l, T, L, u, x}}
+ * 添加历史记录
+ * [CPU 优化] 复杂度 O(1) - 直接插入行，无 JSON 解析
  */
 export async function addHistoryAggregated(env, siteId, record) {
-  // 读取现有数据
-  const row = await env.DB.prepare(
-    'SELECT data FROM history_aggregated WHERE site_id = ?'
-  ).bind(siteId).first();
+  // 提取 Push 数据中的关键指标
+  const pushDataStr = record.pushData ? JSON.stringify({
+    c: record.pushData.cpu ?? null,
+    m: record.pushData.memory ?? null,
+    d: record.pushData.disk ?? null,
+    l: record.pushData.load ?? null,
+    T: record.pushData.temperature ?? null,
+    L: record.pushData.latency ?? null,
+    u: record.pushData.uptime ?? null,
+    x: record.pushData.custom || null
+  }) : null;
 
-  let history = [];
-  if (row && row.data) {
-    try {
-      history = JSON.parse(row.data);
-    } catch (e) {
-      history = [];
-    }
-  }
-
-  // 构建新记录（压缩格式）
-  const newRecord = {
-    t: record.timestamp,
-    s: record.status,
-    c: record.statusCode || 0,
-    r: record.responseTime || 0,
-    m: record.message || null
-  };
-
-  // 如果有 Push 数据，添加 p 字段
-  if (record.pushData) {
-    newRecord.p = {
-      c: record.pushData.cpu ?? null,
-      m: record.pushData.memory ?? null,
-      d: record.pushData.disk ?? null,
-      l: record.pushData.load ?? null,
-      T: record.pushData.temperature ?? null,
-      L: record.pushData.latency ?? null,
-      u: record.pushData.uptime ?? null,
-      x: record.pushData.custom || null
-    };
-  }
-
-  history.unshift(newRecord);
-
-  // 限制记录数量
-  if (history.length > MAX_HISTORY_RECORDS) {
-    history = history.slice(0, MAX_HISTORY_RECORDS);
-  }
-
-  // 确保不超过 D1 行大小限制
-  history = ensureHistorySizeLimit(history);
-
-  // 写入
-  const now = Date.now();
-  const dataStr = JSON.stringify(history);
   await env.DB.prepare(`
-    INSERT INTO history_aggregated (site_id, data, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(site_id) DO UPDATE SET data = ?, updated_at = ?
-  `).bind(siteId, dataStr, now, dataStr, now).run();
+    INSERT INTO history (site_id, created_at, status, status_code, response_time, message, push_data)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    siteId,
+    record.timestamp,
+    record.status,
+    record.statusCode || 0,
+    record.responseTime || 0,
+    record.message || null,
+    pushDataStr
+  ).run();
 }
 
 /**
- * 批量添加历史记录到聚合表（优化：单次事务）
+ * 批量添加历史记录
+ * [CPU 优化] 复杂度 O(N) - N 条 INSERT，无 JSON 解析
  */
 export async function batchAddHistoryAggregated(env, records) {
   if (!records || records.length === 0) return;
 
-  // 按站点分组
-  const recordsBySite = {};
-  for (const r of records) {
-    if (!recordsBySite[r.siteId]) {
-      recordsBySite[r.siteId] = [];
-    }
-    recordsBySite[r.siteId].push({
-      t: r.timestamp,
-      s: r.status,
-      c: r.statusCode || 0,
-      r: r.responseTime || 0,
-      m: r.message || null
-    });
-  }
+  const statements = records.map(r => {
+    const pushDataStr = r.pushData ? JSON.stringify({
+      c: r.pushData.cpu ?? null,
+      m: r.pushData.memory ?? null,
+      d: r.pushData.disk ?? null,
+      l: r.pushData.load ?? null,
+      T: r.pushData.temperature ?? null,
+      L: r.pushData.latency ?? null,
+      u: r.pushData.uptime ?? null,
+      x: r.pushData.custom || null
+    }) : null;
 
-  const siteIds = Object.keys(recordsBySite);
-
-  // 批量读取现有数据
-  const placeholders = siteIds.map(() => '?').join(',');
-  const existing = await env.DB.prepare(
-    `SELECT site_id, data FROM history_aggregated WHERE site_id IN (${placeholders})`
-  ).bind(...siteIds).all();
-
-  const existingMap = {};
-  for (const row of (existing.results || [])) {
-    try {
-      existingMap[row.site_id] = JSON.parse(row.data);
-    } catch (e) {
-      existingMap[row.site_id] = [];
-    }
-  }
-
-  // 准备批量写入
-  const now = Date.now();
-  const statements = [];
-
-  for (const siteId of siteIds) {
-    let history = existingMap[siteId] || [];
-    // 新记录添加到前面
-    history = [...recordsBySite[siteId], ...history];
-    // 限制数量
-    if (history.length > MAX_HISTORY_RECORDS) {
-      history = history.slice(0, MAX_HISTORY_RECORDS);
-    }
-
-    // 确保不超过 D1 行大小限制
-    history = ensureHistorySizeLimit(history);
-
-    const dataStr = JSON.stringify(history);
-    statements.push(
-      env.DB.prepare(`
-        INSERT INTO history_aggregated (site_id, data, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(site_id) DO UPDATE SET data = ?, updated_at = ?
-      `).bind(siteId, dataStr, now, dataStr, now)
+    return env.DB.prepare(`
+      INSERT INTO history (site_id, created_at, status, status_code, response_time, message, push_data)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      r.siteId,
+      r.timestamp,
+      r.status,
+      r.statusCode || 0,
+      r.responseTime || 0,
+      r.message || null,
+      pushDataStr
     );
-  }
+  });
 
-  try {
-    await env.DB.batch(statements);
-  } catch (error) {
-    console.error('❌ 批量写入历史记录失败:', error.message);
-    console.error('❌ 失败详情: statements count =', statements.length);
-    // 尝试逐个写入以找出问题
-    for (let i = 0; i < statements.length; i++) {
-      try {
-        await statements[i].run();
-      } catch (e) {
-        console.error(`❌ 站点 ${siteIds[i]} 历史记录写入失败:`, e.message);
-      }
-    }
-  }
+  await env.DB.batch(statements);
 }
 
 /**
- * 获取站点聚合历史记录
+ * 获取站点历史记录
+ * [CPU 优化] 数据库完成排序和过滤，Worker 只负责转发
  */
 export async function getSiteHistoryAggregated(env, siteId, hours = 24) {
-  const row = await env.DB.prepare(
-    'SELECT data FROM history_aggregated WHERE site_id = ?'
-  ).bind(siteId).first();
-
-  if (!row || !row.data) return [];
-
-  let history = [];
-  try {
-    history = JSON.parse(row.data);
-  } catch (e) {
-    return [];
-  }
-
-  // 按时间过滤
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
-  const filtered = history.filter(r => r.t > cutoff);
 
-  // 转换为标准格式
-  return filtered.map(r => ({
-    timestamp: r.t,
-    status: r.s,
-    statusCode: r.c,
-    responseTime: r.r,
-    message: r.m
+  const results = await env.DB.prepare(`
+    SELECT created_at, status, status_code, response_time, message
+    FROM history
+    WHERE site_id = ? AND created_at > ?
+    ORDER BY created_at DESC
+  `).bind(siteId, cutoff).all();
+
+  return (results.results || []).map(r => ({
+    timestamp: r.created_at,
+    status: r.status,
+    statusCode: r.status_code,
+    responseTime: r.response_time,
+    message: r.message
   }));
 }
 
 /**
- * 批量获取多个站点的聚合历史记录（优化版：单次遍历）
+ * 批量获取多个站点的历史记录
+ * [CPU 优化] 单次查询，内存分组
  */
 export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
   if (!siteIds || siteIds.length === 0) return {};
-
-  const placeholders = siteIds.map(() => '?').join(',');
-  const results = await env.DB.prepare(
-    `SELECT site_id, data FROM history_aggregated WHERE site_id IN (${placeholders})`
-  ).bind(...siteIds).all();
-
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
+  const placeholders = siteIds.map(() => '?').join(',');
+
+  // 获取所有相关记录
+  const results = await env.DB.prepare(`
+    SELECT site_id, created_at, status, status_code, response_time, message
+    FROM history
+    WHERE site_id IN (${placeholders}) AND created_at > ?
+    ORDER BY created_at DESC
+  `).bind(...siteIds, cutoff).all();
+
+  // 在内存中分组
   const historyMap = {};
+  siteIds.forEach(id => historyMap[id] = []);
 
   for (const row of (results.results || [])) {
-    let history;
-    try {
-      history = JSON.parse(row.data);
-    } catch (e) {
-      historyMap[row.site_id] = [];
-      continue;
-    }
-
-    // 单次遍历：过滤 + 转换
-    const filtered = [];
-    for (let i = 0, len = history.length; i < len; i++) {
-      const r = history[i];
-      if (r.t > cutoff) {
-        filtered.push({
-          timestamp: r.t,
-          status: r.s,
-          statusCode: r.c,
-          responseTime: r.r,
-          message: r.m
-        });
-      }
-    }
-    historyMap[row.site_id] = filtered;
-  }
-
-  // 确保所有请求的站点都有返回值
-  for (let i = 0, len = siteIds.length; i < len; i++) {
-    if (!historyMap[siteIds[i]]) {
-      historyMap[siteIds[i]] = [];
+    if (historyMap[row.site_id]) {
+      historyMap[row.site_id].push({
+        timestamp: row.created_at,
+        status: row.status,
+        statusCode: row.status_code,
+        responseTime: row.response_time,
+        message: row.message
+      });
     }
   }
 
@@ -648,58 +516,37 @@ export async function batchGetSiteHistoryAggregated(env, siteIds, hours = 24) {
 }
 
 /**
- * 清理聚合历史中的旧数据
+ * 清理旧历史记录
+ * [CPU 优化] 使用 DELETE 语句，数据库引擎负责处理，不占用 Worker CPU
  */
 export async function cleanupAggregatedHistory(env, retentionHours = 720) {
   const cutoff = Date.now() - retentionHours * 60 * 60 * 1000;
 
-  // 读取所有聚合数据
-  const results = await env.DB.prepare(
-    'SELECT site_id, data FROM history_aggregated'
-  ).all();
+  const result = await env.DB.prepare(
+    'DELETE FROM history WHERE created_at < ?'
+  ).bind(cutoff).run();
 
-  let cleanedCount = 0;
-  const statements = [];
-  const now = Date.now();
-
-  for (const row of (results.results || [])) {
-    let history = [];
-    try {
-      history = JSON.parse(row.data);
-    } catch (e) {
-      continue;
-    }
-
-    const originalLength = history.length;
-    history = history.filter(r => r.t > cutoff);
-
-    if (history.length < originalLength) {
-      cleanedCount += originalLength - history.length;
-      statements.push(
-        env.DB.prepare(
-          'UPDATE history_aggregated SET data = ?, updated_at = ? WHERE site_id = ?'
-        ).bind(JSON.stringify(history), now, row.site_id)
-      );
-    }
+  // 尝试清理旧表数据（迁移过渡期）
+  try {
+    await env.DB.prepare('DELETE FROM history_aggregated').run();
+  } catch (e) {
+    // 旧表可能不存在，忽略错误
   }
 
-  if (statements.length > 0) {
-    await env.DB.batch(statements);
-  }
-
-  console.log(`🧹 清理了 ${cleanedCount} 条旧聚合历史记录`);
-  return cleanedCount;
+  const deletedCount = result.meta?.changes || 0;
+  console.log(`🧹 已清理 ${deletedCount} 条旧历史记录`);
+  return deletedCount;
 }
 
 /**
- * 添加历史记录（只写入聚合表）
+ * 添加历史记录
  */
 export async function addHistory(env, siteId, record) {
   await addHistoryAggregated(env, siteId, record);
 }
 
 /**
- * 批量添加历史记录（只写入聚合表，优化 D1 写入量）
+ * 批量添加历史记录
  */
 export async function batchAddHistory(env, records) {
   if (!records || records.length === 0) return;
@@ -707,26 +554,26 @@ export async function batchAddHistory(env, records) {
 }
 
 /**
- * 获取站点历史记录（使用聚合表，只读 1 行）
+ * 获取站点历史记录
  */
 export async function getSiteHistory(env, siteId, hours = 24) {
   return getSiteHistoryAggregated(env, siteId, hours);
 }
 
 /**
- * 批量获取多个站点的历史记录（使用聚合表，N 站点只读 N 行）
+ * 批量获取多个站点的历史记录
  */
 export async function batchGetSiteHistory(env, siteIds, hours = 24) {
   return batchGetSiteHistoryAggregated(env, siteIds, hours);
 }
 
 /**
- * 清理旧历史记录（只清理聚合表）
+ * 清理旧历史记录
  */
 export async function cleanupOldHistory(env, retentionHours = 720) {
-  const count = await cleanupAggregatedHistory(env, retentionHours);
-  return count;
+  return cleanupAggregatedHistory(env, retentionHours);
 }
+
 
 // ==================== 分组操作 ====================
 
@@ -961,7 +808,6 @@ export const putAdminPassword = setAdminPassword;
 
 /**
  * 更新 Push 心跳（立即写入数据库）
- * Push 数据统一存入 history_aggregated，使用 p 字段存储指标
  */
 export async function updatePushHeartbeat(env, siteId, heartbeatData) {
   const now = Date.now();
@@ -981,72 +827,55 @@ export async function updatePushHeartbeat(env, siteId, heartbeatData) {
     siteId
   ).run();
 
-  // 添加历史记录（包含 Push 指标）
-  await addHistoryAggregated(env, siteId, {
+  // 添加历史记录
+  await addHistory(env, siteId, {
     timestamp: now,
     status: 'online',
     statusCode: 200,
     responseTime: heartbeatData.responseTime || 0,
     message: 'OK',
-    // Push 指标数据
-    pushData: {
-      cpu: pushData.cpu,
-      memory: pushData.memory,
-      disk: pushData.disk,
-      load: pushData.load,
-      temperature: pushData.temperature,
-      latency: pushData.latency,
-      uptime: pushData.uptime,
-      custom: pushData.custom
-    }
+    pushData: pushData
   });
 
   console.log(`📡 Push 心跳已写入 D1: ${siteId}`);
 }
 
 /**
- * 获取 Push 指标历史记录（从 history_aggregated 提取）
+ * 获取 Push 指标历史记录
+ * [CPU 优化] 从 history 表查询，无需解析大 JSON
  */
 export async function getPushHistory(env, siteId, hours = 24) {
-  const row = await env.DB.prepare(
-    'SELECT data FROM history_aggregated WHERE site_id = ?'
-  ).bind(siteId).first();
-
-  if (!row || !row.data) return [];
-
-  let history = [];
-  try {
-    history = JSON.parse(row.data);
-  } catch (e) {
-    return [];
-  }
-
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
 
-  // 按时间过滤并提取 Push 指标
-  return history
-    .filter(r => r.t > cutoff && r.p) // 只返回有 Push 数据的记录
-    .map(r => ({
-      timestamp: r.t,
-      cpu: r.p?.c,
-      memory: r.p?.m,
-      disk: r.p?.d,
-      load: r.p?.l,
-      temperature: r.p?.T,
-      latency: r.p?.L,
-      uptime: r.p?.u,
-      custom: r.p?.x
-    }));
+  const results = await env.DB.prepare(`
+    SELECT created_at, push_data
+    FROM history
+    WHERE site_id = ? AND created_at > ? AND push_data IS NOT NULL
+    ORDER BY created_at DESC
+  `).bind(siteId, cutoff).all();
+
+  return (results.results || []).map(row => {
+    let p = {};
+    try { p = JSON.parse(row.push_data); } catch (e) { }
+    return {
+      timestamp: row.created_at,
+      cpu: p.c,
+      memory: p.m,
+      disk: p.d,
+      load: p.l,
+      temperature: p.T,
+      latency: p.L,
+      uptime: p.u,
+      custom: p.x
+    };
+  });
 }
 
 /**
- * 清理旧的 Push 历史记录（已合并到 cleanupAggregatedHistory，此函数保留兼容性）
+ * 清理旧的 Push 历史记录（已由 cleanupOldHistory 统一处理）
  */
 export async function cleanupOldPushHistory(env, retentionHours = 168) {
-  // Push 历史已合并到 history_aggregated，由 cleanupAggregatedHistory 统一清理
-  // 此函数保留空实现以兼容调用
-  console.log('🧹 Push 历史已合并到聚合表，统一清理');
-  return 0;
+  return 0; // 已由 cleanupOldHistory 统一处理
 }
 
 // ==================== 证书告警操作 ====================
@@ -1194,15 +1023,22 @@ export async function initDatabase(env) {
         alert_type TEXT
       )
     `),
-    // 聚合历史表：每站点一行，存储 JSON 数组（优化 D1 读写行数）
-    // 普通站点和 Push 站点统一使用此表
+    // 关系型历史记录表：每条记录一行，极大降低 CPU 消耗
     env.DB.prepare(`
-      CREATE TABLE IF NOT EXISTS history_aggregated (
-        site_id TEXT PRIMARY KEY,
-        data TEXT NOT NULL DEFAULT '[]',
-        updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000)
+      CREATE TABLE IF NOT EXISTS history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        status TEXT,
+        status_code INTEGER,
+        response_time INTEGER,
+        message TEXT,
+        push_data TEXT,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
       )
-    `)
+    `),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_site_time ON history(site_id, created_at DESC)'),
+    env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at)')
   ]);
 
   console.log('✅ D1 数据库初始化完成');
@@ -1225,19 +1061,41 @@ async function runMigrations(env) {
 
   const migrations = [];
 
+  // 检查 history 表是否存在（终极优化迁移）
+  const historyCheck = await env.DB.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='history'"
+  ).first();
+
+  if (!historyCheck) {
+    migrations.push(env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        status TEXT,
+        status_code INTEGER,
+        response_time INTEGER,
+        message TEXT,
+        push_data TEXT,
+        FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
+      )
+    `));
+    migrations.push(env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_site_time ON history(site_id, created_at DESC)'));
+    migrations.push(env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at)'));
+    console.log('  + 创建 history 表 (V2 Schema)');
+  }
+
   // 检查 sites 表缺失的列
   if (!sitesCols.has('tcp_host')) {
     migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN tcp_host TEXT'));
     console.log('  + 添加 sites.tcp_host 列');
   }
 
-  // 检查 host_sort_order 列（主机面板排序）
   if (!sitesCols.has('host_sort_order')) {
     migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN host_sort_order INTEGER DEFAULT 0'));
     console.log('  + 添加 sites.host_sort_order 列');
   }
 
-  // 检查 db_host 和 db_port 列（MySQL/PostgreSQL 监控）
   if (!sitesCols.has('db_host')) {
     migrations.push(env.DB.prepare('ALTER TABLE sites ADD COLUMN db_host TEXT'));
     console.log('  + 添加 sites.db_host 列');
@@ -1300,13 +1158,16 @@ export async function clearAllData(env) {
   console.log('⚠️ 清除所有 D1 数据...');
 
   await env.DB.batch([
-    env.DB.prepare('DELETE FROM history_aggregated'),
+    env.DB.prepare('DELETE FROM history'),
     env.DB.prepare('DELETE FROM incidents'),
     env.DB.prepare('DELETE FROM certificate_alerts'),
     env.DB.prepare('DELETE FROM sites'),
     env.DB.prepare("DELETE FROM groups WHERE id != 'default'"),
     env.DB.prepare("DELETE FROM config WHERE key NOT IN ('admin_password', 'admin_path')")
   ]);
+
+  // 尝试清理旧表
+  try { await env.DB.prepare('DELETE FROM history_aggregated').run(); } catch (e) { }
 
   console.log('✅ 所有数据已清除');
 }

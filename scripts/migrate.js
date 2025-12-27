@@ -80,69 +80,69 @@ function getExistingColumns(tableName) {
 function parseSchema(schemaPath) {
   const content = fs.readFileSync(schemaPath, 'utf-8');
   const tables = {};
-  
+
   // 匹配 CREATE TABLE 语句
   const tableRegex = /CREATE TABLE IF NOT EXISTS (\w+)\s*\(([\s\S]*?)\);/g;
   let match;
-  
+
   while ((match = tableRegex.exec(content)) !== null) {
     const tableName = match[1];
     const columnsBlock = match[2];
-    
+
     // 解析列定义
     const columns = {};
     const lines = columnsBlock.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
       // 跳过空行、注释、约束
-      if (!trimmed || trimmed.startsWith('--') || trimmed.startsWith('FOREIGN') || 
-          trimmed.startsWith('PRIMARY') || trimmed.startsWith('UNIQUE') ||
-          trimmed.startsWith('CREATE INDEX')) {
+      if (!trimmed || trimmed.startsWith('--') || trimmed.startsWith('FOREIGN') ||
+        trimmed.startsWith('PRIMARY') || trimmed.startsWith('UNIQUE') ||
+        trimmed.startsWith('CREATE INDEX')) {
         continue;
       }
-      
+
       // 匹配列定义: column_name TYPE [DEFAULT xxx]
       const colMatch = trimmed.match(/^(\w+)\s+(TEXT|INTEGER|REAL)(.*)$/i);
       if (colMatch) {
         const colName = colMatch[1];
         const colType = colMatch[2].toUpperCase();
         let defaultVal = '';
-        
+
         // 提取 DEFAULT 值
         const defaultMatch = colMatch[3].match(/DEFAULT\s+([^,]+)/i);
         if (defaultMatch) {
           defaultVal = ` DEFAULT ${defaultMatch[1].trim().replace(/,$/, '')}`;
         }
-        
+
         columns[colName] = `${colType}${defaultVal}`;
       }
     }
-    
+
     tables[tableName] = columns;
   }
-  
+
   return tables;
 }
 
 // 主迁移逻辑
 async function migrate() {
   console.log(`🔄 开始自动数据库迁移（${TARGET_NAME}数据库）...\n`);
-  
+
   const schemaPath = path.join(__dirname, '..', 'schema.sql');
   if (!fs.existsSync(schemaPath)) {
     console.error('❌ 找不到 schema.sql');
     process.exit(1);
   }
-  
+
   const schema = parseSchema(schemaPath);
   let migrationsRun = 0;
-  
+
   // 第一步：检查并删除废弃的表（schema.sql 中不存在的表）
   console.log('🗑️ 检查废弃表...');
   const existingTables = getExistingTables();
   const schemaTables = Object.keys(schema);
-  
+
   for (const tableName of existingTables) {
     if (!schemaTables.includes(tableName)) {
       console.log(`   🗑️ 删除废弃表: ${tableName}`);
@@ -158,20 +158,20 @@ async function migrate() {
       }
     }
   }
-  
+
   // 第二步：检查并添加缺失的列
   console.log('\n📋 检查表结构...');
   for (const [tableName, columns] of Object.entries(schema)) {
     console.log(`   检查表: ${tableName}`);
-    
+
     // 检查表是否存在，如果不存在则创建
     const existingCols = getExistingColumns(tableName);
-    
+
     if (existingCols.length === 0) {
       console.log(`   ⚠️ 表不存在，将通过 schema.sql 创建`);
       continue;
     }
-    
+
     // 检查缺失的列
     for (const [colName, colDef] of Object.entries(columns)) {
       if (!existingCols.includes(colName)) {
@@ -190,14 +190,14 @@ async function migrate() {
       }
     }
   }
-  
+
   // 第三步：创建索引（如果不存在）
   console.log('\n📋 检查索引...');
   const indexes = [
     'CREATE INDEX IF NOT EXISTS idx_incidents_site ON incidents(site_id)',
     'CREATE INDEX IF NOT EXISTS idx_incidents_time ON incidents(created_at DESC)'
   ];
-  
+
   for (const idx of indexes) {
     try {
       execSync(
@@ -209,19 +209,38 @@ async function migrate() {
     }
   }
 
-  // 第四步：创建聚合历史表（如果不存在）
-  // 普通站点和 Push 站点统一使用此表
-  console.log('\n📋 检查聚合历史表...');
+  // 第四步：创建历史记录表（如果不存在）
+  // 使用关系型表替代 JSON 聚合，极大降低 CPU 消耗
+  console.log('\n📋 检查历史记录表...');
   try {
     execSync(
-      `npx wrangler d1 execute ${DB_NAME} --command "CREATE TABLE IF NOT EXISTS history_aggregated (site_id TEXT PRIMARY KEY, data TEXT NOT NULL DEFAULT '[]', updated_at INTEGER DEFAULT (strftime('%s', 'now') * 1000));" ${TARGET} --yes`,
+      `npx wrangler d1 execute ${DB_NAME} --command "CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, site_id TEXT NOT NULL, created_at INTEGER NOT NULL, status TEXT, status_code INTEGER, response_time INTEGER, message TEXT, push_data TEXT, FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE);" ${TARGET} --yes`,
       { encoding: 'utf-8', stdio: 'pipe' }
     );
-    console.log('   ✅ 聚合历史表已就绪');
+    console.log('   ✅ 历史记录表已就绪');
   } catch (e) {
-    console.log('   ⚠️ 聚合历史表创建失败:', e.message);
+    console.log('   ⚠️ 历史记录表创建失败:', e.message);
   }
-  
+
+  // 第五步：创建历史记录索引
+  console.log('\n📋 检查历史记录索引...');
+  const historyIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_history_site_time ON history(site_id, created_at DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at)'
+  ];
+
+  for (const idx of historyIndexes) {
+    try {
+      execSync(
+        `npx wrangler d1 execute ${DB_NAME} --command "${idx};" ${TARGET} --yes`,
+        { encoding: 'utf-8', stdio: 'pipe' }
+      );
+    } catch (e) {
+      // 忽略已存在的索引错误
+    }
+  }
+  console.log('   ✅ 历史记录索引已就绪');
+
   console.log(`\n✅ 迁移完成！执行了 ${migrationsRun} 个迁移操作`);
 }
 
