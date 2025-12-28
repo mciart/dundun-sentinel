@@ -17,14 +17,15 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
   const [hoveredBlock, setHoveredBlock] = useState(null);
   const [visibleCount, setVisibleCount] = useState(0);
   const [blockGap, setBlockGap] = useState(CONFIG.MIN_BLOCK_GAP);
+  const [isVisible, setIsVisible] = useState(false);
 
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const blocksRef = useRef([]);
   const hoveredIndexRef = useRef(null);
-  const touchActiveRef = useRef(false);
+  const touchActiveRef = useRef(null);
 
-  const { getHistory: getCachedHistory, historyCache, cacheVersion } = useHistory();
+  const { getHistory: getCachedHistory, loadSiteHistory, historyCache, cacheVersion } = useHistory();
 
   const getBlockColors = useCallback((record, isDark = false) => {
     if (!record || record.status === 'empty') {
@@ -238,15 +239,48 @@ export default function StatusBarCanvas({ siteId, onAverageResponseTime }) {
     measureVisible();
   }, [measureVisible]);
 
-
-  // 加载历史数据 - 使用 cacheVersion 确保数据更新时能触发重绘
+  // IntersectionObserver - 检测组件是否在视口中
   useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { rootMargin: '100px' } // 提前 100px 开始加载
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  // 加载历史数据 - 只在可见时加载
+  useEffect(() => {
+    // 先检查缓存
     const cachedData = getCachedHistory(siteId);
-    const historyList = Array.isArray(cachedData?.history) ? cachedData.history : [];
-    const realHistory = historyList.slice(0, CONFIG.MAX_HISTORY).reverse();
-    setHistory(realHistory);
-    setLoading(false);
-  }, [siteId, getCachedHistory, historyCache, cacheVersion]);
+    if (cachedData) {
+      const historyList = Array.isArray(cachedData.history) ? cachedData.history : [];
+      const realHistory = historyList.slice(0, CONFIG.MAX_HISTORY).reverse();
+      setHistory(realHistory);
+      setLoading(false);
+      return;
+    }
+
+    // 无缓存且可见时，触发加载
+    if (isVisible) {
+      loadSiteHistory(siteId).then(data => {
+        if (data && data.history) {
+          const historyList = Array.isArray(data.history) ? data.history : [];
+          const realHistory = historyList.slice(0, CONFIG.MAX_HISTORY).reverse();
+          setHistory(realHistory);
+        }
+        setLoading(false);
+      });
+    }
+  }, [siteId, isVisible, getCachedHistory, loadSiteHistory, historyCache, cacheVersion]);
 
 
   useEffect(() => {

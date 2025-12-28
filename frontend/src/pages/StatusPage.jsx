@@ -37,7 +37,7 @@ export default function StatusPage() {
     hostPanelExpanded: true
   });
 
-  const { fetchAllHistory, historyCache } = useHistory();
+  const { preloadSites, setHours, historyCache } = useHistory();
 
   const loadGroups = async () => {
     try {
@@ -76,9 +76,11 @@ export default function StatusPage() {
       // 进度条约需要 50 个记录，所以需要 50 * 站点数 / 60 小时
       const siteCount = sitesList.length || 1;
       const historyHours = Math.max(Math.ceil((50 * siteCount) / 60), 1);
+      const siteIds = sitesList.map(s => s.id);
 
-      console.log(`[StatusPage] 动态计算历史小时数: ${historyHours}h (${siteCount} 站点)`);
-      fetchAllHistory(historyHours);
+      console.log(`[StatusPage] 预加载 + 懒加载: ${historyHours}h × ${siteCount} 站点`);
+      setHours(historyHours);
+      preloadSites(siteIds, historyHours);
     } catch (error) {
       console.error('加载仪表盘失败:', error);
     } finally {

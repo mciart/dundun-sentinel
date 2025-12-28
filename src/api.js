@@ -61,6 +61,11 @@ export async function handleAPI(request, env, ctx) {
     return await dashboardController.getDataVersion(request, env);
   }
 
+  // 单站点历史（轻量级，减少 CPU）
+  if (path.startsWith('/api/site-history/') && request.method === 'GET') {
+    return await dashboardController.getSingleSiteHistory(request, env);
+  }
+
   // 批量获取历史数据（公开接口）
   if (path === '/api/history-batch' && request.method === 'GET') {
     return await dashboardController.getHistoryBatch(request, env);

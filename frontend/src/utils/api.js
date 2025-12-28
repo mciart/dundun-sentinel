@@ -104,6 +104,13 @@ export const api = {
     return request(`/api/history-batch?${params}`, { auth: false });
   },
 
+  // 单站点历史（轻量级，每次 ~2ms CPU）
+  getSiteHistoryWithVersion: (siteId, hours = 1, version = null) => {
+    const params = new URLSearchParams({ hours });
+    if (version) params.append('v', version);
+    return request(`/api/site-history/${siteId}?${params}`, { auth: false });
+  },
+
   getSites: () =>
     request('/api/sites'),
 

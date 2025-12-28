@@ -124,6 +124,29 @@ export async function getDataVersion(request, env) {
   }
 }
 
+/**
+ * 获取单个站点历史（轻量级，每次 ~2ms CPU）
+ */
+export async function getSingleSiteHistory(request, env) {
+  try {
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split('/');
+    const siteId = pathParts[pathParts.length - 1];
+    const hours = parseInt(url.searchParams.get('hours') || '1', 10);
+
+    const history = await db.getSiteHistory(env, siteId, hours);
+
+    return new Response(JSON.stringify(history), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=60, s-maxage=60'
+      }
+    });
+  } catch (error) {
+    return errorResponse('获取站点历史失败: ' + error.message, 500);
+  }
+}
+
 export async function getIncidents(request, env) {
   try {
     const incidents = await db.getAllIncidents(env, 100);
