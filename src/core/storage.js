@@ -1101,10 +1101,14 @@ async function runMigrations(env) {
         FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE
       )
     `));
-    migrations.push(env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_site_time ON history(site_id, created_at DESC)'));
-    migrations.push(env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at)'));
     console.log('  + 创建 history 表 (V2 Schema)');
   }
+
+  // 确保 history 索引存在（无论表是否新建）
+  migrations.push(env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_site_time ON history(site_id, created_at DESC)'));
+  migrations.push(env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_created_at ON history(created_at)'));
+  // 覆盖索引：包含查询所需所有列，避免回表
+  migrations.push(env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_history_query ON history(site_id, created_at DESC, status, status_code, response_time, message)'));
 
   // 检查 sites 表缺失的列
   if (!sitesCols.has('tcp_host')) {
